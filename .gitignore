@@ -885,3 +885,14 @@ obj/
 /node_modules
 /wwwroot/node_modules
 
+/appsettings.json
+/terraform/.terraform.lock.hcl
+/appsettings.Development.json
+/.idea/.idea.ToDoApp.dir/.idea/aws.xml
+/.idea/.idea.ToDoApp.dir/.idea/copilot.data.migration.agent.xml
+/.idea/.idea.ToDoApp.dir/.idea/copilot.data.migration.edit.xml
+/.idea/.idea.ToDoApp.dir/.idea/encodings.xml
+/.idea/.idea.ToDoApp.dir/.idea/indexLayout.xml
+/Properties/launchSettings.json
+/.idea/.idea.ToDoApp.dir/.idea/terraform.xml
+/.idea/.idea.ToDoApp.dir/.idea/vcs.xml
