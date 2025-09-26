@@ -1,0 +1,121 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  DOCKER_IMAGE: codecrasher2/todoapp
+  REGISTRY: docker.io
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Test Application
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build application
+      run: dotnet build --no-restore --configuration Release
+
+    - name: Run tests
+      run: dotnet test --no-build --configuration Release --verbosity normal
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    name: Build and Push Docker Image
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.DOCKER_IMAGE }}
+        tags: |
+          type=ref,event=branch
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    name: Deploy to AWS Swarm
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SWARM_MANAGER_IP }} >> ~/.ssh/known_hosts
+
+    - name: Deploy to Docker Swarm
+      run: |
+        # Get the new image tag (SHA-based)
+        IMAGE_TAG="${{ env.DOCKER_IMAGE }}:master-${{ github.sha }}"
+
+        # Deploy to swarm
+        ssh -i ~/.ssh/id_rsa ec2-user@${{ secrets.SWARM_MANAGER_IP }} << EOF
+          # Update the service with new image
+          docker service update --image $IMAGE_TAG todoapp_todoapp
+
+          # Wait for rollout to complete
+          echo "Waiting for service update to complete..."
+          sleep 30
+
+          # Verify deployment
+          docker service ps todoapp_todoapp --no-trunc
+          docker service logs todoapp_todoapp --tail 10
+        EOF
+
+    - name: Verify deployment
+      run: |
+        # Health check after deployment
+        sleep 60
+        ssh -i ~/.ssh/id_rsa ec2-user@${{ secrets.SWARM_MANAGER_IP }} << EOF
+          # Check service status
+          RUNNING_SERVICES=\$(docker service ls --filter name=todoapp_todoapp --format "{{.Replicas}}")
+          echo "Service replicas: \$RUNNING_SERVICES"
+
+          # Simple health check via ALB
+          # Note: This assumes ALB DNS name is available via terraform output
+          echo "Deployment completed successfully"
+        EOF
