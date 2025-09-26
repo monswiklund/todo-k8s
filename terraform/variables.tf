@@ -9,3 +9,9 @@ variable "instance_type" {
   type        = string
   default     = "t3.micro"
 }
+
+variable "admin_ip_cidr" {
+  description = "CIDR block for admin SSH access"
+  type        = string
+  default     = "83.252.50.4/32"  
+}

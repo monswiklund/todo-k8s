@@ -5,10 +5,10 @@ services:
     ports:
       - "80:8080"  # Extern port 80 mappas till container port 8080
     environment:
-      - AWS_REGION=eu-west-1  # Där min DynamoDB tabell ligger
+      - AWS_REGION=eu-west-1 
       - ASPNETCORE_ENVIRONMENT=Development  # För Swagger 
     dns:
-      - 8.8.8.8  # Google DNS, ChatGPT rekommenderade?
+      - 8.8.8.8 
       - 8.8.4.4
     deploy:
       replicas: 3  # 3 kopior för load balancing

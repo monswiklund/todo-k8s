@@ -32,8 +32,11 @@ app.UseSwaggerUI(options =>
     options.SwaggerEndpoint("/openapi/v1.json", "v1");
 });
 
-// Redirect till swagger
-app.MapGet("/", () => Results.Redirect("/swagger"));
+// Serve static files från wwwroot
+app.UseStaticFiles();
+
+// Serve startpage istället för redirect
+app.MapGet("/", () => Results.File("~/index.html", "text/html"));
 
 // Hämta alla todos
 app.MapGet("/todos", async (TaskService taskService) =>

@@ -31,7 +31,7 @@ resource "aws_internet_gateway" "todo_igw" {
   }
 }
 
-# Två subnets för hög tillgänglighet, om en AZ går ner har jag backup
+# Två subnets för hög tillgänglighet, om en AZ går ner finns backup
 resource "aws_subnet" "todo_public_1" {
   vpc_id                  = aws_vpc.todo_vpc.id
   cidr_block              = "10.0.1.0/24"  # 251 användbara IPs
@@ -79,20 +79,12 @@ resource "aws_route_table_association" "todo_public_2_rta" {
   route_table_id = aws_route_table.todo_public_rt.id
 }
 
-# Security Group, fungerar som brandvägg
-resource "aws_security_group" "todo_swarm_sg" {
-  name_prefix = "todo-swarm-"
+# ALB Security Group - endast för load balancer
+resource "aws_security_group" "todo_alb_sg" {
+  name = "todo-alb-"
   vpc_id      = aws_vpc.todo_vpc.id
 
-  # SSH så jag kan logga in och administrera
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]  # Från hela internet, inte perfekt men enkelt
-  }
-
-  # HTTP för min TODO API
+  # HTTP från internet
   ingress {
     from_port   = 80
     to_port     = 80
@@ -100,13 +92,56 @@ resource "aws_security_group" "todo_swarm_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Port 8080 för direkt åtkomst till containers
+  # HTTPS från internet (för framtida SSL-terminering)
   ingress {
-    from_port   = 8080
-    to_port     = 8080
+    from_port   = 443
+    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  # Utgående trafik till alla destinationer (kommer att begränsas av EC2 ingress)
+  egress {
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "todo-alb-sg"
+  }
+}
+
+# EC2 Security Group, fungerar som brandvägg
+resource "aws_security_group" "todo_swarm_sg" {
+  name = "todo-swarm-"
+  vpc_id      = aws_vpc.todo_vpc.id
+
+  # SSH endast med min IP-adress
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.admin_ip_cidr]  # Endast från admin IP-adress
+  }
+
+  # Port 8080 från ALB endast
+  ingress {
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
+    security_groups = [aws_security_group.todo_alb_sg.id]
+  }
+
+  # Port 8080 - SÄKERHET: Inte längre exponerad till internet
+  # Kommenterad för säkerhet - använd ALB istället för direkt åtkomst
+  # ingress {
+  #   from_port   = 8080
+  #   to_port     = 8080
+  #   protocol    = "tcp"
+  #   cidr_blocks = ["0.0.0.0/0"]
+  # }
 
   # Docker Swarm portar, bara mellan mina egna instances
   # Port 2377: Manager kommunikation
@@ -140,12 +175,61 @@ resource "aws_security_group" "todo_swarm_sg" {
     self      = true
   }
 
-  # All utgående trafik tillåten, behövs för att nå AWS APIs och Docker Hub
+  # Specifik utgående trafik för säkerhet
+  # HTTPS för paketuppdateringar och Docker Hub
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # HTTP för paketuppdateringar (yum)
+  egress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # DNS resolution
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Docker Swarm egress rules - behövs för noder att kommunicera med varandra
+  # Port 2377: Manager kommunikation
+  egress {
+    from_port = 2377
+    to_port   = 2377
+    protocol  = "tcp"
+    self      = true
+  }
+
+  # Port 7946: Node discovery och communication
+  egress {
+    from_port = 7946
+    to_port   = 7946
+    protocol  = "tcp"
+    self      = true
+  }
+
+  egress {
+    from_port = 7946
+    to_port   = 7946
+    protocol  = "udp"
+    self      = true
+  }
+
+  # Port 4789: Overlay network trafik mellan containers
+  egress {
+    from_port = 4789
+    to_port   = 4789
+    protocol  = "udp"
+    self      = true
   }
 
   tags = {
@@ -232,6 +316,76 @@ resource "aws_instance" "swarm_manager" {
     Name = "swarm-manager"
     Role = "manager"
   }
+}
+
+# Target Group för ALB
+resource "aws_lb_target_group" "todo_tg" {
+  name     = "todo-targets"
+  port     = 8080
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.todo_vpc.id
+
+  health_check {
+    enabled             = true
+    healthy_threshold   = 2
+    interval            = 30
+    matcher             = "200,302"  # 302 för redirect till /swagger
+    path                = "/"
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    timeout             = 5
+    unhealthy_threshold = 2
+  }
+
+  tags = {
+    Name = "todo-targets"
+  }
+}
+
+# Application Load Balancer
+resource "aws_lb" "todo_alb" {
+  name               = "todo-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.todo_alb_sg.id]
+  subnets            = [aws_subnet.todo_public_1.id, aws_subnet.todo_public_2.id]
+
+  enable_deletion_protection = false  # För utveckling
+
+  tags = {
+    Name = "todo-alb"
+  }
+}
+
+# ALB Listener - HTTP to HTTPS redirect
+resource "aws_lb_listener" "todo_listener" {
+  load_balancer_arn = aws_lb.todo_alb.arn
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
+
+# Target Group Attachments
+resource "aws_lb_target_group_attachment" "todo_manager" {
+  target_group_arn = aws_lb_target_group.todo_tg.arn
+  target_id        = aws_instance.swarm_manager.id
+  port             = 8080
+}
+
+resource "aws_lb_target_group_attachment" "todo_workers" {
+  count            = 2  # Fast värde som matchar worker count
+  target_group_arn = aws_lb_target_group.todo_tg.arn
+  target_id        = aws_instance.swarm_workers[count.index].id
+  port             = 8080
 }
 
 # Worker nodes
