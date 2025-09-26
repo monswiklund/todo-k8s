@@ -58,11 +58,14 @@ output "cicd_setup" {
   value = {
     required_secrets = [
       "DOCKER_USERNAME - Docker Hub username",
-      "DOCKER_PASSWORD - Docker Hub password",
-      "SSH_PRIVATE_KEY - Private key for EC2 access",
-      "SWARM_MANAGER_IP - Manager node public IP"
+      "DOCKER_PASSWORD - Docker Hub password or access token",
+      "AWS_ACCESS_KEY_ID - AWS IAM user access key with SSM permissions",
+      "AWS_SECRET_ACCESS_KEY - AWS IAM user secret key",
+      "SWARM_MANAGER_INSTANCE_ID - Manager EC2 instance ID"
     ]
-    swarm_manager_ip = aws_instance.swarm_manager.public_ip
-    deploy_command   = "Automated via GitHub Actions on push to master"
+    swarm_manager_instance_id = aws_instance.swarm_manager.id
+    swarm_manager_ip          = aws_instance.swarm_manager.public_ip
+    deploy_method             = "AWS SSM Session Manager (secure, no SSH ports)"
+    deploy_command            = "Automated via GitHub Actions on push to master"
   }
 }

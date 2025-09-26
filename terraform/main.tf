@@ -283,6 +283,18 @@ resource "aws_iam_role_policy_attachment" "ec2_dynamodb_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"  # Full access för enkelhets skull
 }
 
+# SSM behörigheter för Session Manager och fjärrkommandon
+resource "aws_iam_role_policy_attachment" "ec2_ssm_policy" {
+  role       = aws_iam_role.ec2_dynamodb_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+# Tillåter EC2 att registrera sig med SSM
+resource "aws_iam_role_policy_attachment" "ec2_ssm_core_policy" {
+  role       = aws_iam_role.ec2_dynamodb_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2RoleforSSM"
+}
+
 # Instance profile, kopplar IAM role till EC2 instances
 resource "aws_iam_instance_profile" "ec2_dynamodb_profile" {
   name = "ec2-dynamodb-profile"
@@ -306,10 +318,14 @@ resource "aws_instance" "swarm_manager" {
     systemctl start docker
     systemctl enable docker
     usermod -a -G docker ec2-user  # Låter ec2-user köra Docker utan sudo
-    
+
     # Docker Compose för stack management
     curl -L "https://github.com/docker/compose/releases/download/v2.39.4/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
+
+    # SSM Agent (redan installerat på AL2023, men säkerställ att det körs)
+    systemctl enable amazon-ssm-agent
+    systemctl start amazon-ssm-agent
   EOF
 
   tags = {
@@ -406,6 +422,10 @@ resource "aws_instance" "swarm_workers" {
     systemctl start docker
     systemctl enable docker
     usermod -a -G docker ec2-user
+
+    # SSM Agent för alla noder
+    systemctl enable amazon-ssm-agent
+    systemctl start amazon-ssm-agent
   EOF
 
   tags = {
