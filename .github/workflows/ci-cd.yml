@@ -89,8 +89,7 @@ jobs:
 
     - name: Deploy to Docker Swarm via SSM
       run: |
-        # Get the new image tag (SHA-based)
-        IMAGE_TAG="${{ env.DOCKER_IMAGE }}:master-${{ github.sha }}"
+        IMAGE_TAG="${{ env.DOCKER_IMAGE }}:latest"
 
         # Send deployment commands via SSM using JSON format
         COMMAND_ID=$(aws ssm send-command \
