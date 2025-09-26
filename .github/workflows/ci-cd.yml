@@ -92,22 +92,11 @@ jobs:
         # Get the new image tag (SHA-based)
         IMAGE_TAG="${{ env.DOCKER_IMAGE }}:master-${{ github.sha }}"
 
-        # Send deployment commands via SSM
+        # Send deployment commands via SSM using JSON format
         COMMAND_ID=$(aws ssm send-command \
           --instance-ids "${{ secrets.SWARM_MANAGER_INSTANCE_ID }}" \
           --document-name "AWS-RunShellScript" \
-          --parameters commands="
-            # Update the service with new image
-            docker service update --image $IMAGE_TAG todoapp_todoapp
-
-            # Wait for rollout to complete
-            echo 'Waiting for service update to complete...'
-            sleep 30
-
-            # Verify deployment
-            docker service ps todoapp_todoapp --no-trunc
-            docker service logs todoapp_todoapp --tail 10
-          " \
+          --parameters '{"commands":["docker service update --image '"$IMAGE_TAG"' todoapp_todoapp","echo \"Waiting for service update to complete...\"","sleep 30","docker service ps todoapp_todoapp --no-trunc","docker service logs todoapp_todoapp --tail 10"]}' \
           --output text --query 'Command.CommandId')
 
         echo "Command ID: $COMMAND_ID"
@@ -128,16 +117,8 @@ jobs:
 
     - name: Verify deployment health
       run: |
-        # Final health check via SSM
+        # Final health check via SSM using JSON format
         aws ssm send-command \
           --instance-ids "${{ secrets.SWARM_MANAGER_INSTANCE_ID }}" \
           --document-name "AWS-RunShellScript" \
-          --parameters commands="
-            # Check service status
-            RUNNING_SERVICES=\$(docker service ls --filter name=todoapp_todoapp --format '{{.Replicas}}')
-            echo 'Service replicas: \$RUNNING_SERVICES'
-
-            # Check if all replicas are healthy
-            docker service ps todoapp_todoapp --filter 'desired-state=running'
-            echo 'Deployment completed successfully'
-          "
+          --parameters '{"commands":["RUNNING_SERVICES=$(docker service ls --filter name=todoapp_todoapp --format \"{{.Replicas}}\")","echo \"Service replicas: $RUNNING_SERVICES\"","docker service ps todoapp_todoapp --filter \"desired-state=running\"","echo \"Deployment completed successfully\""]}'
