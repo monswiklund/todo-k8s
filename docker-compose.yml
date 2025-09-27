@@ -5,11 +5,18 @@ services:
     ports:
       - "80:8080"  # Extern port 80 mappas till container port 8080
     environment:
-      - AWS_REGION=eu-west-1 
-      - ASPNETCORE_ENVIRONMENT=Development  # För Swagger 
+      - AWS_REGION=eu-west-1
+      - ASPNETCORE_ENVIRONMENT=Development  # För Swagger
     dns:
-      - 8.8.8.8 
+      - 8.8.8.8
       - 8.8.4.4
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: "/todoapp/docker"
+        awslogs-region: "eu-west-1"
+        awslogs-stream-prefix: "todoapp"
+        awslogs-create-group: "true"
     deploy:
       replicas: 3  # 3 kopior för load balancing
     networks:

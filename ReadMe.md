@@ -52,7 +52,7 @@ EOF
 docker stack deploy -c docker-compose.yml todoapp
 ```
 
-## Uppdateringar
+## Manuella Uppdateringar
 
 ### 1. Bygg ny image
 ```bash

@@ -69,3 +69,24 @@ output "cicd_setup" {
     deploy_command            = "Automated via GitHub Actions on push to master"
   }
 }
+
+# Monitoring Information
+output "monitoring_setup" {
+  description = "CloudWatch Logs and Monitoring Information"
+  value = {
+    cloudwatch_log_groups = [
+      aws_cloudwatch_log_group.todoapp_application.name,
+      aws_cloudwatch_log_group.todoapp_docker.name
+    ]
+    sns_topic_arn = aws_sns_topic.todoapp_alerts.arn
+    alarms = [
+      aws_cloudwatch_metric_alarm.high_error_rate.alarm_name,
+      aws_cloudwatch_metric_alarm.high_response_time.alarm_name,
+      aws_cloudwatch_metric_alarm.unhealthy_hosts.alarm_name
+    ]
+    log_retention_days = {
+      application = aws_cloudwatch_log_group.todoapp_application.retention_in_days
+      docker      = aws_cloudwatch_log_group.todoapp_docker.retention_in_days
+    }
+  }
+}

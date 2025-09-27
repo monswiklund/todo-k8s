@@ -1,16 +1,46 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
+using Amazon.CloudWatchLogs;
 using ToDoApp.Models;
 using ToDoApp.Services;
+using Serilog;
+using Serilog.Sinks.AwsCloudWatch;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Konfigurera Serilog med CloudWatch Logs
+builder.Host.UseSerilog((context, services, configuration) =>
+{
+    var logger = configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .WriteTo.Console();
+
+    // Endast lägg till CloudWatch om vi är i AWS-miljö
+    if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AWS_REGION")))
+    {
+        try
+        {
+            logger.WriteTo.AmazonCloudWatch(
+                logGroup: "/todoapp/application",
+                logStreamPrefix: Environment.MachineName ?? "local",
+                cloudWatchClient: services.GetRequiredService<IAmazonCloudWatchLogs>());
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Warning: Could not configure CloudWatch logging: {ex.Message}");
+        }
+    }
+});
 
 // Swagger för API-dokumentation
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen();
 
-// AWS DynamoDB setup
+// AWS services setup
 builder.Services.AddAWSService<IAmazonDynamoDB>();
+builder.Services.AddAWSService<IAmazonCloudWatchLogs>();
 builder.Services.AddSingleton<IDynamoDBContext>(provider =>
 {
     var client = provider.GetRequiredService<IAmazonDynamoDB>();
@@ -23,14 +53,15 @@ builder.Services.AddSingleton<IDynamoDBContext>(provider =>
 });
 
 builder.Services.AddScoped<TaskService>();
+builder.Services.AddSingleton<MetricsService>();
 
 var app = builder.Build();
 
+// Serilog request logging
+app.UseSerilogRequestLogging();
+
 app.MapOpenApi();
-app.UseSwaggerUI(options =>
-{
-    options.SwaggerEndpoint("/openapi/v1.json", "v1");
-});
+app.UseSwaggerUI(options => { options.SwaggerEndpoint("/openapi/v1.json", "v1"); });
 
 // Serve static files från wwwroot
 app.UseStaticFiles();

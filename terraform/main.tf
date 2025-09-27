@@ -295,10 +295,71 @@ resource "aws_iam_role_policy_attachment" "ec2_ssm_core_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2RoleforSSM"
 }
 
+# CloudWatch Logs permissions för applikation
+resource "aws_iam_role_policy" "cloudwatch_logs_policy" {
+  name = "cloudwatch-logs-policy"
+  role = aws_iam_role.ec2_dynamodb_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams",
+          "logs:DescribeLogGroups"
+        ]
+        Resource = [
+          aws_cloudwatch_log_group.todoapp_application.arn,
+          aws_cloudwatch_log_group.todoapp_docker.arn,
+          "${aws_cloudwatch_log_group.todoapp_application.arn}:*",
+          "${aws_cloudwatch_log_group.todoapp_docker.arn}:*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:PutMetricData"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "cloudwatch:namespace" = "ToDoApp"
+          }
+        }
+      }
+    ]
+  })
+}
+
 # Instance profile, kopplar IAM role till EC2 instances
 resource "aws_iam_instance_profile" "ec2_dynamodb_profile" {
   name = "ec2-dynamodb-profile"
   role = aws_iam_role.ec2_dynamodb_role.name
+}
+
+# CloudWatch Log Groups för centraliserad logging
+resource "aws_cloudwatch_log_group" "todoapp_application" {
+  name              = "/todoapp/application"
+  retention_in_days = 14
+
+  tags = {
+    Name        = "todoapp-application-logs"
+    Environment = "production"
+  }
+}
+
+resource "aws_cloudwatch_log_group" "todoapp_docker" {
+  name              = "/todoapp/docker"
+  retention_in_days = 7
+
+  tags = {
+    Name        = "todoapp-docker-logs"
+    Environment = "production"
+  }
 }
 
 # Manager node
@@ -431,5 +492,79 @@ resource "aws_instance" "swarm_workers" {
   tags = {
     Name = "swarm-worker-${count.index + 1}"
     Role = "worker"
+  }
+}
+
+# SNS Topic för alerts
+resource "aws_sns_topic" "todoapp_alerts" {
+  name = "todoapp-alerts"
+
+  tags = {
+    Name = "todoapp-alerts"
+  }
+}
+
+# CloudWatch Alarms för kritiska metrics
+resource "aws_cloudwatch_metric_alarm" "high_error_rate" {
+  alarm_name          = "todoapp-high-error-rate"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "ErrorCount"
+  namespace           = "AWS/ApplicationELB"
+  period              = "300"
+  statistic           = "Sum"
+  threshold           = "10"
+  alarm_description   = "This metric monitors error rate"
+  alarm_actions = [aws_sns_topic.todoapp_alerts.arn]
+
+  dimensions = {
+    LoadBalancer = aws_lb.todo_alb.arn_suffix
+  }
+
+  tags = {
+    Name = "todoapp-high-error-rate"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "high_response_time" {
+  alarm_name          = "todoapp-high-response-time"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "TargetResponseTime"
+  namespace           = "AWS/ApplicationELB"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "2.0"
+  alarm_description   = "This metric monitors response time"
+  alarm_actions = [aws_sns_topic.todoapp_alerts.arn]
+
+  dimensions = {
+    LoadBalancer = aws_lb.todo_alb.arn_suffix
+  }
+
+  tags = {
+    Name = "todoapp-high-response-time"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
+  alarm_name          = "todoapp-unhealthy-hosts"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "HealthyHostCount"
+  namespace           = "AWS/ApplicationELB"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "2"
+  alarm_description   = "This metric monitors healthy host count"
+  alarm_actions = [aws_sns_topic.todoapp_alerts.arn]
+
+  dimensions = {
+    TargetGroup  = aws_lb_target_group.todo_tg.arn_suffix
+    LoadBalancer = aws_lb.todo_alb.arn_suffix
+  }
+
+  tags = {
+    Name = "todoapp-unhealthy-hosts"
   }
 }
