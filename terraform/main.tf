@@ -289,11 +289,11 @@ resource "aws_iam_role_policy_attachment" "ec2_ssm_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-# Tillåter EC2 att registrera sig med SSM
-resource "aws_iam_role_policy_attachment" "ec2_ssm_core_policy" {
-  role       = aws_iam_role.ec2_dynamodb_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2RoleforSSM"
-}
+# Tillåter EC2 att registrera sig med SSM (denna policy är deprecated, SSMManagedInstanceCore räcker)
+# resource "aws_iam_role_policy_attachment" "ec2_ssm_core_policy" {
+#   role       = aws_iam_role.ec2_dynamodb_role.name
+#   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2RoleforSSM"
+# }
 
 # CloudWatch Logs permissions för applikation
 resource "aws_iam_role_policy" "cloudwatch_logs_policy" {
@@ -434,20 +434,15 @@ resource "aws_lb" "todo_alb" {
   }
 }
 
-# ALB Listener - HTTP to HTTPS redirect
+# ALB Listener - HTTP forward to target group
 resource "aws_lb_listener" "todo_listener" {
   load_balancer_arn = aws_lb.todo_alb.arn
   port              = "80"
   protocol          = "HTTP"
 
   default_action {
-    type = "redirect"
-
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
-    }
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.todo_tg.arn
   }
 }
 
