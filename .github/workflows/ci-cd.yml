@@ -119,7 +119,6 @@ jobs:
           UserKnownHostsFile /dev/null
           ConnectTimeout 30
         EOF
-        timeout 30 ssh-keyscan -H ${{ secrets.ALB_MANAGER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
 
     - name: Test SSH
       run: |
@@ -171,7 +170,6 @@ jobs:
           StrictHostKeyChecking no
           UserKnownHostsFile /dev/null
         EOF
-        ssh-keyscan -H ${{ secrets.ALB_MANAGER_IP }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
     - name: Rollback
       run: |
