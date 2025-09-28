@@ -423,15 +423,85 @@ resource "aws_security_group_rule" "admin_ssh" {
   description       = "SSH access for admin"
 }
 
-# GitHub Actions SSH Access - Required for CI/CD
-resource "aws_security_group_rule" "github_actions_ssh" {
-  type              = "ingress"
-  from_port         = 22
-  to_port           = 22
-  protocol          = "tcp"
-  cidr_blocks = ["0.0.0.0/0"]  # GitHub Actions uses dynamic IPs
-  security_group_id = aws_security_group.todo_swarm_sg.id
-  description       = "SSH access for GitHub Actions CI/CD"
+# Bastion Host Security Group
+resource "aws_security_group" "bastion_sg" {
+  name        = "bastion-sg"
+  description = "Allow SSH to bastion host"
+  vpc_id      = aws_vpc.todo_vpc.id
+
+  # SSH från internet till bastion (acceptabelt med hårdning)
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "SSH from internet to bastion host"
+  }
+
+  # Standard egress - tillåt all utgående trafik
+  egress {
+    from_port = 0
+    to_port   = 0
+    protocol  = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "bastion-sg"
+  }
+}
+
+# Bastion Host Instance
+resource "aws_instance" "bastion" {
+  ami           = data.aws_ami.amazon_linux.id
+  instance_type = "t3.micro"
+  key_name      = aws_key_pair.todo_key.key_name
+  vpc_security_group_ids = [aws_security_group.bastion_sg.id]
+  subnet_id = aws_subnet.todo_public_1.id
+
+  # Minimal user data för bastion hårdning
+  user_data = <<-EOF
+    #!/bin/bash
+    yum update -y
+
+    # Hårdna SSH konfiguration
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config
+    sed -i 's/#PermitRootLogin yes/PermitRootLogin no/g' /etc/ssh/sshd_config
+    echo "PubkeyAcceptedKeyTypes +ssh-ed25519" >> /etc/ssh/sshd_config
+    systemctl restart sshd
+
+    # Installera fail2ban för brute-force skydd
+    yum install -y epel-release
+    yum install -y fail2ban
+    systemctl enable fail2ban
+    systemctl start fail2ban
+  EOF
+
+  tags = {
+    Name = "bastion-host"
+    Role = "bastion"
+  }
+}
+
+# Elastic IP för bastion (stabil publik adress)
+resource "aws_eip" "bastion_eip" {
+  instance = aws_instance.bastion.id
+  domain   = "vpc"
+
+  tags = {
+    Name = "bastion-eip"
+  }
+}
+
+# Uppdatera Swarm SG: SSH endast från bastion
+resource "aws_security_group_rule" "swarm_ssh_from_bastion" {
+  type                     = "ingress"
+  from_port                = 22
+  to_port                  = 22
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.bastion_sg.id
+  security_group_id        = aws_security_group.todo_swarm_sg.id
+  description              = "SSH from bastion host only"
 }
 
 

@@ -75,15 +75,37 @@ output "commands" {
   }
 }
 
-# CI/CD Secrets Information
+# Bastion Host Information
+output "bastion_public_ip" {
+  description = "Bastion host public IP (Elastic IP)"
+  value       = aws_eip.bastion_eip.public_ip
+}
+
+output "bastion_public_dns" {
+  description = "Bastion host public DNS name"
+  value       = aws_instance.bastion.public_dns
+}
+
+output "ssh_bastion" {
+  description = "SSH command to connect to bastion host"
+  value       = "ssh -i ~/.ssh/id_rsa ec2-user@${aws_eip.bastion_eip.public_ip}"
+}
+
+output "ssh_manager_via_bastion" {
+  description = "SSH command to connect to manager via bastion"
+  value       = "ssh -i ~/.ssh/id_rsa -J ec2-user@${aws_eip.bastion_eip.public_ip} ec2-user@${aws_instance.swarm_manager.private_ip}"
+}
+
+# CI/CD Secrets Information (Updated for Bastion)
 output "github_secrets_required" {
-  description = "Required GitHub Secrets for CI/CD"
+  description = "Required GitHub Secrets for CI/CD with Bastion"
   value = {
-    DOCKER_USERNAME     = "Docker Hub username"
-    DOCKER_PASSWORD     = "Docker Hub access token"
-    AWS_SSH_PRIVATE_KEY = "SSH private key content"
-    ALB_MANAGER_IP      = aws_instance.swarm_manager.public_ip
-    ALB_DNS_NAME        = aws_lb.todo_alb.dns_name
+    DOCKER_USERNAME    = "Docker Hub username"
+    DOCKER_PASSWORD    = "Docker Hub access token"
+    DEPLOY_KEY         = "SSH private key content (ed25519 recommended)"
+    BASTION_HOST       = aws_eip.bastion_eip.public_ip
+    MANAGER_PRIVATE_IP = aws_instance.swarm_manager.private_ip
+    ALB_DNS_NAME       = aws_lb.todo_alb.dns_name
   }
 }
 

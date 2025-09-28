@@ -98,36 +98,61 @@ jobs:
 
     - name: Validate GitHub Secrets
       run: |
-        if [ -z "${{ secrets.ALB_MANAGER_IP }}" ]; then
-          echo "ERROR: ALB_MANAGER_IP secret is not set"
+        if [ -z "${{ secrets.BASTION_HOST }}" ]; then
+          echo "ERROR: BASTION_HOST secret is not set"
           exit 1
         fi
-        if [ -z "${{ secrets.AWS_SSH_PRIVATE_KEY }}" ]; then
-          echo "ERROR: AWS_SSH_PRIVATE_KEY secret is not set"
+        if [ -z "${{ secrets.MANAGER_PRIVATE_IP }}" ]; then
+          echo "ERROR: MANAGER_PRIVATE_IP secret is not set"
+          exit 1
+        fi
+        if [ -z "${{ secrets.DEPLOY_KEY }}" ]; then
+          echo "ERROR: DEPLOY_KEY secret is not set"
           exit 1
         fi
         echo "All required secrets are present"
 
-    - name: Setup SSH
+    - name: Setup SSH for Bastion
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.AWS_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
+
+        # SSH config för bastion jump host
         cat > ~/.ssh/config << 'EOF'
-        Host *
+        Host bastion
+          HostName ${{ secrets.BASTION_HOST }}
+          User ec2-user
+          IdentityFile ~/.ssh/id_rsa
+          StrictHostKeyChecking no
+          UserKnownHostsFile /dev/null
+          ConnectTimeout 30
+
+        Host manager
+          HostName ${{ secrets.MANAGER_PRIVATE_IP }}
+          User ec2-user
+          IdentityFile ~/.ssh/id_rsa
+          ProxyJump bastion
           StrictHostKeyChecking no
           UserKnownHostsFile /dev/null
           ConnectTimeout 30
         EOF
 
-    - name: Test SSH
+    - name: Test SSH via Bastion
       run: |
-        ssh -i ~/.ssh/id_rsa ec2-user@${{ secrets.ALB_MANAGER_IP }} "docker --version"
+        echo "Testing SSH connection to bastion..."
+        ssh bastion "echo 'Bastion connection successful'"
 
-    - name: Deploy
+        echo "Testing SSH connection to manager via bastion..."
+        ssh manager "docker --version"
+
+    - name: Deploy via Bastion
       run: |
-        scp -i ~/.ssh/id_rsa scripts/deploy.sh docker-compose.yml ec2-user@${{ secrets.ALB_MANAGER_IP }}:~/
-        ssh -i ~/.ssh/id_rsa ec2-user@${{ secrets.ALB_MANAGER_IP }} << 'EOF'
+        echo "Copying deployment files via bastion..."
+        scp scripts/deploy.sh docker-compose.yml manager:~/
+
+        echo "Executing deployment on manager node..."
+        ssh manager << 'EOF'
           chmod +x ~/deploy.sh
           ~/deploy.sh "${{ env.DOCKER_IMAGE }}:latest"
         EOF
@@ -160,20 +185,33 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup SSH
+    - name: Setup SSH for Rollback
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.AWS_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
+
+        # SSH config för bastion jump host
         cat > ~/.ssh/config << 'EOF'
-        Host *
+        Host bastion
+          HostName ${{ secrets.BASTION_HOST }}
+          User ec2-user
+          IdentityFile ~/.ssh/id_rsa
+          StrictHostKeyChecking no
+          UserKnownHostsFile /dev/null
+
+        Host manager
+          HostName ${{ secrets.MANAGER_PRIVATE_IP }}
+          User ec2-user
+          IdentityFile ~/.ssh/id_rsa
+          ProxyJump bastion
           StrictHostKeyChecking no
           UserKnownHostsFile /dev/null
         EOF
 
-    - name: Rollback
+    - name: Rollback via Bastion
       run: |
-        ssh -i ~/.ssh/id_rsa ec2-user@${{ secrets.ALB_MANAGER_IP }} << 'EOF'
+        ssh manager << 'EOF'
           docker service rollback todoapp_todoapp || docker service update --image codecrasher2/todoapp:latest todoapp_todoapp
         EOF
 
