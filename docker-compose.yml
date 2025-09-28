@@ -10,13 +10,6 @@ services:
     dns:
       - 8.8.8.8
       - 8.8.4.4
-    logging:
-      driver: awslogs
-      options:
-        awslogs-group: "/todoapp/docker"
-        awslogs-region: "eu-west-1"
-        awslogs-stream-prefix: "todoapp"
-        awslogs-create-group: "true"
     deploy:
       replicas: 3  # 3 kopior för load balancing
     networks:

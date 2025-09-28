@@ -52,41 +52,4 @@ output "commands" {
   }
 }
 
-# CI/CD Information
-output "cicd_setup" {
-  description = "GitHub Actions secrets needed for CI/CD"
-  value = {
-    required_secrets = [
-      "DOCKER_USERNAME - Docker Hub username",
-      "DOCKER_PASSWORD - Docker Hub password or access token",
-      "AWS_ACCESS_KEY_ID - AWS IAM user access key with SSM permissions",
-      "AWS_SECRET_ACCESS_KEY - AWS IAM user secret key",
-      "SWARM_MANAGER_INSTANCE_ID - Manager EC2 instance ID"
-    ]
-    swarm_manager_instance_id = aws_instance.swarm_manager.id
-    swarm_manager_ip          = aws_instance.swarm_manager.public_ip
-    deploy_method             = "AWS SSM Session Manager (secure, no SSH ports)"
-    deploy_command            = "Automated via GitHub Actions on push to master"
-  }
-}
 
-# Monitoring Information
-output "monitoring_setup" {
-  description = "CloudWatch Logs and Monitoring Information"
-  value = {
-    cloudwatch_log_groups = [
-      aws_cloudwatch_log_group.todoapp_application.name,
-      aws_cloudwatch_log_group.todoapp_docker.name
-    ]
-    sns_topic_arn = aws_sns_topic.todoapp_alerts.arn
-    alarms = [
-      aws_cloudwatch_metric_alarm.high_error_rate.alarm_name,
-      aws_cloudwatch_metric_alarm.high_response_time.alarm_name,
-      aws_cloudwatch_metric_alarm.unhealthy_hosts.alarm_name
-    ]
-    log_retention_days = {
-      application = aws_cloudwatch_log_group.todoapp_application.retention_in_days
-      docker      = aws_cloudwatch_log_group.todoapp_docker.retention_in_days
-    }
-  }
-}
