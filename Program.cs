@@ -116,5 +116,4 @@ app.MapGet("/health", () =>
 });
 
 // Explicit IPv4 binding för ALB health checks
-app.Urls.Add("http://0.0.0.0:8080");
 app.Run();
