@@ -115,5 +115,5 @@ app.MapGet("/health", () =>
     });
 });
 
-// Lyssna på alla interfaces för Docker
-app.Run("http://*:8080");
+// Explicit IPv4 binding för ALB health checks
+app.Run("http://0.0.0.0:8080");
