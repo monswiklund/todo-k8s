@@ -423,14 +423,4 @@ resource "aws_security_group_rule" "admin_ssh" {
   description       = "SSH access for admin"
 }
 
-# TEMPORARY: GitHub Actions SSH Access - Open for testing
-resource "aws_security_group_rule" "github_actions_ssh_temp" {
-  type        = "ingress"
-  from_port   = 22
-  to_port     = 22
-  protocol    = "tcp"
-  cidr_blocks = ["0.0.0.0/0"]
-  security_group_id = aws_security_group.todo_swarm_sg.id
-  description = "TEMPORARY: SSH access for GitHub Actions CI/CD testing"
-}
 
