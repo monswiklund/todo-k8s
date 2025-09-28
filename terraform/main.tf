@@ -404,14 +404,14 @@ resource "aws_lb_target_group" "todo_tg" {
 
   health_check {
     enabled             = true
-    healthy_threshold   = 2
+    healthy_threshold   = 3
     interval            = 30
-    matcher             = "200,302"  # 302 för redirect till /swagger
-    path                = "/"
+    matcher             = "200"
+    path                = "/health"
     port                = "traffic-port"
     protocol            = "HTTP"
-    timeout             = 5
-    unhealthy_threshold = 2
+    timeout             = 10
+    unhealthy_threshold = 5
   }
 
   tags = {

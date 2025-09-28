@@ -104,5 +104,16 @@ app.MapDelete("/todos/{id}", async (string id, TaskService service) =>
     return Results.NoContent();
 });
 
+// Health check endpoint för ALB
+app.MapGet("/health", () =>
+{
+    return Results.Ok(new
+    {
+        status = "healthy",
+        timestamp = DateTime.UtcNow,
+        version = "2.0"
+    });
+});
+
 // Lyssna på alla interfaces för Docker
 app.Run("http://*:8080");
