@@ -93,7 +93,7 @@ resource "aws_security_group" "todo_swarm_sg" {
     cidr_blocks = [var.admin_ip_cidr]  # Endast från admin IP-adress
   }
 
-  # Port 8080 från internet för direkt åtkomst
+  # Port 8080 från internet för direkt åtkomst (fallback)
   ingress {
     from_port = 8080
     to_port   = 8080
@@ -192,6 +192,40 @@ resource "aws_security_group" "todo_swarm_sg" {
 
   tags = {
     Name = "todo-swarm-sg"
+  }
+}
+
+# Application Load Balancer Security Group
+resource "aws_security_group" "alb_sg" {
+  name   = "todo-alb-sg"
+  vpc_id = aws_vpc.todo_vpc.id
+
+  # HTTP från internet
+  ingress {
+    from_port = 80
+    to_port   = 80
+    protocol  = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # HTTPS från internet (för framtida SSL)
+  ingress {
+    from_port = 443
+    to_port   = 443
+    protocol  = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Standard egress - tillåt all utgående trafik
+  egress {
+    from_port = 0
+    to_port   = 0
+    protocol  = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "todo-alb-sg"
   }
 }
 
@@ -305,5 +339,82 @@ resource "aws_instance" "swarm_workers" {
     Name = "swarm-worker-${count.index + 1}"
     Role = "worker"
   }
+}
+
+# Application Load Balancer
+resource "aws_lb" "todo_alb" {
+  name               = "todo-swarm-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups = [aws_security_group.alb_sg.id]
+  subnets = [aws_subnet.todo_public_1.id, aws_subnet.todo_public_2.id]
+
+  enable_deletion_protection = false  # För development
+
+  tags = {
+    Name = "todo-swarm-alb"
+  }
+}
+
+# Target Group för manager node
+resource "aws_lb_target_group" "todo_manager_tg" {
+  name     = "todo-manager-tg"
+  port     = 8080
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.todo_vpc.id
+
+  health_check {
+    enabled             = true
+    healthy_threshold   = 3
+    unhealthy_threshold = 2
+    timeout             = 5
+    interval            = 30
+    path                = "/health"
+    matcher             = "200"
+    port                = "8080"
+    protocol            = "HTTP"
+  }
+
+  tags = {
+    Name = "todo-manager-tg"
+  }
+}
+
+# Target Group Attachment för manager
+resource "aws_lb_target_group_attachment" "manager_attachment" {
+  target_group_arn = aws_lb_target_group.todo_manager_tg.arn
+  target_id        = aws_instance.swarm_manager.id
+  port             = 8080
+}
+
+# ALB Listener för HTTP traffic
+resource "aws_lb_listener" "todo_listener" {
+  load_balancer_arn = aws_lb.todo_alb.arn
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.todo_manager_tg.arn
+  }
+}
+
+# Separata Security Group Rules för att undvika cirkulära referenser
+resource "aws_security_group_rule" "alb_to_ec2_app" {
+  type                     = "ingress"
+  from_port                = 8080
+  to_port                  = 8080
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.alb_sg.id
+  security_group_id        = aws_security_group.todo_swarm_sg.id
+}
+
+resource "aws_security_group_rule" "alb_to_ec2_health" {
+  type                     = "ingress"
+  from_port                = 80
+  to_port                  = 80
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.alb_sg.id
+  security_group_id        = aws_security_group.todo_swarm_sg.id
 }
 

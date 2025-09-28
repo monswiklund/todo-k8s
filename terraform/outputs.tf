@@ -1,12 +1,34 @@
-# App URLs
+# ALB URLs (Primary access points)
 output "application_url" {
-  description = "Main application URL"
-  value = "http://${aws_instance.swarm_manager.public_ip}:8080"
+  description = "Main application URL via ALB"
+  value       = "http://${aws_lb.todo_alb.dns_name}"
 }
 
 output "swagger_url" {
-  description = "API documentation URL"
-  value = "http://${aws_instance.swarm_manager.public_ip}:8080/swagger"
+  description = "API documentation URL via ALB"
+  value       = "http://${aws_lb.todo_alb.dns_name}/swagger"
+}
+
+# ALB Information
+output "alb_dns_name" {
+  description = "ALB DNS name for CI/CD"
+  value       = aws_lb.todo_alb.dns_name
+}
+
+output "alb_zone_id" {
+  description = "ALB hosted zone ID for Route 53"
+  value       = aws_lb.todo_alb.zone_id
+}
+
+output "target_group_arn" {
+  description = "Target Group ARN"
+  value       = aws_lb_target_group.todo_manager_tg.arn
+}
+
+# Direct access URLs (backup/debugging)
+output "direct_manager_url" {
+  description = "Direct manager node URL (bypass ALB)"
+  value       = "http://${aws_instance.swarm_manager.public_ip}:8080"
 }
 
 # SSH access
@@ -49,6 +71,30 @@ output "commands" {
     update_app     = "docker service update --image codecrasher2/todoapp:latest todoapp_todoapp"
     view_logs      = "docker service logs todoapp_todoapp --tail 20"
     deploy_script  = "./scripts/deploy.sh codecrasher2/todoapp:latest"
+    health_check = "curl -f http://${aws_lb.todo_alb.dns_name}/health"
+  }
+}
+
+# CI/CD Secrets Information
+output "github_secrets_required" {
+  description = "Required GitHub Secrets for CI/CD"
+  value = {
+    DOCKER_USERNAME     = "Docker Hub username"
+    DOCKER_PASSWORD     = "Docker Hub access token"
+    AWS_SSH_PRIVATE_KEY = "SSH private key content"
+    ALB_MANAGER_IP      = aws_instance.swarm_manager.public_ip
+    ALB_DNS_NAME        = aws_lb.todo_alb.dns_name
+  }
+}
+
+# Deployment URLs
+output "deployment_endpoints" {
+  description = "All deployment and monitoring endpoints"
+  value = {
+    main_app      = "http://${aws_lb.todo_alb.dns_name}"
+    health_check  = "http://${aws_lb.todo_alb.dns_name}/health"
+    api_docs      = "http://${aws_lb.todo_alb.dns_name}/swagger"
+    direct_access = "http://${aws_instance.swarm_manager.public_ip}:8080"
   }
 }
 

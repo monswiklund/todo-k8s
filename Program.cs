@@ -84,15 +84,35 @@ app.MapDelete("/todos/{id}", async (string id, TaskService service) =>
     return Results.NoContent();
 });
 
-// Health check endpoint för ALB
-app.MapGet("/health", () =>
+// Health check endpoint för ALB med Docker Swarm status
+app.MapGet("/health", async () =>
 {
-    return Results.Ok(new
+    try
     {
-        status = "healthy",
-        timestamp = DateTime.UtcNow,
-        version = "2.0"
-    });
+        var healthData = new
+        {
+            status = "healthy",
+            timestamp = DateTime.UtcNow,
+            version = "3.0",
+            environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+            aws_region = Environment.GetEnvironmentVariable("AWS_REGION"),
+            hostname = Environment.MachineName
+        };
+
+        return Results.Ok(healthData);
+    }
+    catch (Exception ex)
+    {
+        var errorData = new
+        {
+            status = "unhealthy",
+            timestamp = DateTime.UtcNow,
+            error = ex.Message,
+            version = "3.0"
+        };
+
+        return Results.Json(errorData, statusCode: 503);
+    }
 });
 
 // Explicit IPv4 binding för ALB health checks

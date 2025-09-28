@@ -1,23 +1,20 @@
 version: '3.8'
 services:
   todoapp:
-    image: codecrasher2/todoapp:latest  # Min multi-arch image från Docker Hub (jag är på mac)
+    image: codecrasher2/todoapp:latest
     ports:
-      - "80:8080"  # Extern port 80 mappas till container port 8080
-    environment:
-      - AWS_REGION=eu-west-1
-      - ASPNETCORE_ENVIRONMENT=Development  # För Swagger
+      - "8080:8080"
     dns:
       - 8.8.8.8
       - 8.8.4.4
+    environment:
+      - AWS_REGION=eu-west-1
+      - ASPNETCORE_ENVIRONMENT=Development
     deploy:
-      replicas: 3  # 3 kopior för load balancing
+      replicas: 3
     networks:
       - todo-network
 
 networks:
   todo-network:
-    driver: overlay  # Krävs för multi-host networking i Swarm
-    driver_opts:
-      # Löste problem med container ang internet anslutning
-      com.docker.network.bridge.enable_ip_masquerade: "true"
+    driver: overlay
