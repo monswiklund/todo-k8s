@@ -85,13 +85,7 @@ resource "aws_security_group" "todo_swarm_sg" {
   name = "todo-swarm-"
   vpc_id      = aws_vpc.todo_vpc.id
 
-  # SSH endast med min IP-adress
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.admin_ip_cidr]  # Endast från admin IP-adress
-  }
+  # SSH-regler hanteras via separata security group rules för flexibilitet
 
   # Port 8080 från internet för direkt åtkomst (fallback)
   ingress {
@@ -416,5 +410,34 @@ resource "aws_security_group_rule" "alb_to_ec2_health" {
   protocol                 = "tcp"
   source_security_group_id = aws_security_group.alb_sg.id
   security_group_id        = aws_security_group.todo_swarm_sg.id
+}
+
+# SSH Access Rules - Separata för flexibilitet och säkerhet
+resource "aws_security_group_rule" "admin_ssh" {
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+  cidr_blocks = [var.admin_ip_cidr]
+  security_group_id = aws_security_group.todo_swarm_sg.id
+  description       = "SSH access for admin"
+}
+
+# GitHub Actions SSH Access - Officiella GitHub IP-ranges
+resource "aws_security_group_rule" "github_actions_ssh" {
+  type      = "ingress"
+  from_port = 22
+  to_port   = 22
+  protocol  = "tcp"
+  cidr_blocks = [
+    "140.82.112.0/20", # GitHub Actions primary range
+    "142.250.0.0/15", # GitHub Actions secondary range
+    "185.199.108.0/22", # GitHub Pages/Actions range
+    "192.30.252.0/22", # GitHub API range
+    "20.201.28.151/32", # Additional GitHub Actions runner
+    "20.232.89.104/32"    # Additional GitHub Actions runner
+  ]
+  security_group_id = aws_security_group.todo_swarm_sg.id
+  description       = "SSH access for GitHub Actions CI/CD"
 }
 
