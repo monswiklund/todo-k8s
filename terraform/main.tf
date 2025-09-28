@@ -79,39 +79,6 @@ resource "aws_route_table_association" "todo_public_2_rta" {
   route_table_id = aws_route_table.todo_public_rt.id
 }
 
-# ALB Security Group - endast för load balancer
-resource "aws_security_group" "todo_alb_sg" {
-  name = "todo-alb-"
-  vpc_id      = aws_vpc.todo_vpc.id
-
-  # HTTP från internet
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # HTTPS från internet (för framtida SSL-terminering)
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Utgående trafik till alla destinationer (kommer att begränsas av EC2 ingress)
-  egress {
-    from_port   = 0
-    to_port     = 65535
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "todo-alb-sg"
-  }
-}
 
 # EC2 Security Group, fungerar som brandvägg
 resource "aws_security_group" "todo_swarm_sg" {
@@ -126,22 +93,13 @@ resource "aws_security_group" "todo_swarm_sg" {
     cidr_blocks = [var.admin_ip_cidr]  # Endast från admin IP-adress
   }
 
-  # Port 8080 från ALB endast
+  # Port 8080 från internet för direkt åtkomst
   ingress {
-    from_port       = 8080
-    to_port         = 8080
-    protocol        = "tcp"
-    security_groups = [aws_security_group.todo_alb_sg.id]
+    from_port = 8080
+    to_port   = 8080
+    protocol  = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
-
-  # Port 8080 - SÄKERHET: Inte längre exponerad till internet
-  # Kommenterad för säkerhet - använd ALB istället för direkt åtkomst
-  # ingress {
-  #   from_port   = 8080
-  #   to_port     = 8080
-  #   protocol    = "tcp"
-  #   cidr_blocks = ["0.0.0.0/0"]
-  # }
 
   # Docker Swarm portar, bara mellan mina egna instances
   # Port 2377: Manager kommunikation
@@ -321,70 +279,7 @@ resource "aws_instance" "swarm_manager" {
   }
 }
 
-# Target Group för ALB
-resource "aws_lb_target_group" "todo_tg" {
-  name     = "todo-targets"
-  port     = 8080
-  protocol = "HTTP"
-  vpc_id   = aws_vpc.todo_vpc.id
 
-  health_check {
-    enabled             = true
-    healthy_threshold   = 3
-    interval            = 30
-    matcher             = "200"
-    path                = "/health"
-    port                = "traffic-port"
-    protocol            = "HTTP"
-    timeout             = 10
-    unhealthy_threshold = 5
-  }
-
-  tags = {
-    Name = "todo-targets"
-  }
-}
-
-# Application Load Balancer
-resource "aws_lb" "todo_alb" {
-  name               = "todo-alb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.todo_alb_sg.id]
-  subnets            = [aws_subnet.todo_public_1.id, aws_subnet.todo_public_2.id]
-
-  enable_deletion_protection = false  # För utveckling
-
-  tags = {
-    Name = "todo-alb"
-  }
-}
-
-# ALB Listener - HTTP forward to target group
-resource "aws_lb_listener" "todo_listener" {
-  load_balancer_arn = aws_lb.todo_alb.arn
-  port              = "80"
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.todo_tg.arn
-  }
-}
-
-# Target Group Attachments
-resource "aws_lb_target_group_attachment" "todo_manager" {
-  target_group_arn = aws_lb_target_group.todo_tg.arn
-  target_id        = aws_instance.swarm_manager.id
-  port             = 8080
-}
-
-resource "aws_lb_target_group_attachment" "todo_workers" {
-  count            = 2  # Fast värde som matchar worker count
-  target_group_arn = aws_lb_target_group.todo_tg.arn
-  target_id        = aws_instance.swarm_workers[count.index].id
-  port             = 8080
-}
 
 # Worker nodes
 resource "aws_instance" "swarm_workers" {

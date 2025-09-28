@@ -1,12 +1,12 @@
 # App URLs
 output "application_url" {
   description = "Main application URL"
-  value       = "http://${aws_lb.todo_alb.dns_name}"
+  value = "http://${aws_instance.swarm_manager.public_ip}:8080"
 }
 
 output "swagger_url" {
   description = "API documentation URL"
-  value       = "http://${aws_lb.todo_alb.dns_name}/swagger"
+  value = "http://${aws_instance.swarm_manager.public_ip}:8080/swagger"
 }
 
 # SSH access
