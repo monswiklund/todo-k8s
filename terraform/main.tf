@@ -423,4 +423,15 @@ resource "aws_security_group_rule" "admin_ssh" {
   description       = "SSH access for admin"
 }
 
+# GitHub Actions SSH Access - Required for CI/CD
+resource "aws_security_group_rule" "github_actions_ssh" {
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+  cidr_blocks = ["0.0.0.0/0"]  # GitHub Actions uses dynamic IPs
+  security_group_id = aws_security_group.todo_swarm_sg.id
+  description       = "SSH access for GitHub Actions CI/CD"
+}
+
 
