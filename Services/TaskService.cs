@@ -7,13 +7,11 @@ public class TaskService
 {
     private readonly IDynamoDBContext _context;
     private readonly ILogger<TaskService> _logger;
-    private readonly MetricsService _metrics;
 
-    public TaskService(IDynamoDBContext context, ILogger<TaskService> logger, MetricsService metrics)
+    public TaskService(IDynamoDBContext context, ILogger<TaskService> logger)
     {
         _context = context;
         _logger = logger;
-        _metrics = metrics;
     }
 
     public async Task<List<TaskModels>> GetAllAsync()
@@ -77,7 +75,6 @@ public class TaskService
                 OverrideTableName = "Tasks"
             };
             await _context.SaveAsync(newTask, config);
-            _metrics.IncrementTasksCreated();
 
             _logger.LogInformation("Successfully created task {TaskId}: {TaskTitle}", newTask.Id, newTask.Title);
         }
@@ -102,9 +99,8 @@ public class TaskService
             await _context.SaveAsync(updatedTasks, config);
 
             if (updatedTasks.IsCompleted)
-                _metrics.IncrementTasksCompleted();
 
-            _logger.LogInformation("Successfully updated task {TaskId}", updatedTasks.Id);
+                _logger.LogInformation("Successfully updated task {TaskId}", updatedTasks.Id);
         }
         catch (Exception ex)
         {
@@ -124,7 +120,6 @@ public class TaskService
                 OverrideTableName = "Tasks"
             };
             await _context.DeleteAsync<TaskModels>(id, config);
-            _metrics.IncrementTasksDeleted();
 
             _logger.LogInformation("Successfully deleted task {TaskId}", id);
         }
