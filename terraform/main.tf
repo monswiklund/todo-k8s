@@ -223,6 +223,35 @@ resource "aws_security_group" "alb_sg" {
   }
 }
 
+
+# Bastion Host Security Group
+resource "aws_security_group" "bastion_sg" {
+  name        = "bastion-sg"
+  description = "Allow SSH to bastion host"
+  vpc_id      = aws_vpc.todo_vpc.id
+
+  # SSH från internet till bastion 
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] // För github Actions, Kollade på SSM men krånglade och fastnae så här får duga
+    description = "SSH from internet to bastion host"
+  }
+
+  # Standard egress - tillåt all utgående trafik
+  egress {
+    from_port = 0
+    to_port   = 0
+    protocol  = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "bastion-sg"
+  }
+}
+
 # SSH key så jag kan logga in på mina EC2 instances
 resource "aws_key_pair" "todo_key" {
   key_name   = "todo-swarm-key"
@@ -440,33 +469,6 @@ resource "aws_security_group_rule" "admin_ssh" {
   description       = "SSH access for admin"
 }
 
-# Bastion Host Security Group
-resource "aws_security_group" "bastion_sg" {
-  name        = "bastion-sg"
-  description = "Allow SSH to bastion host"
-  vpc_id      = aws_vpc.todo_vpc.id
-
-  # SSH från internet till bastion (acceptabelt med hårdning)
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "SSH from internet to bastion host"
-  }
-
-  # Standard egress - tillåt all utgående trafik
-  egress {
-    from_port = 0
-    to_port   = 0
-    protocol  = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "bastion-sg"
-  }
-}
 
 # Bastion Host Instance
 resource "aws_instance" "bastion" {
@@ -481,7 +483,7 @@ resource "aws_instance" "bastion" {
     #!/bin/bash
     yum update -y
 
-    # Hårdna SSH konfiguration
+    # Stärka SSH konfiguration
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config
     sed -i 's/#PermitRootLogin yes/PermitRootLogin no/g' /etc/ssh/sshd_config
     echo "PubkeyAcceptedKeyTypes +ssh-ed25519" >> /etc/ssh/sshd_config

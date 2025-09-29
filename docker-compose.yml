@@ -1,20 +1,76 @@
+
 version: '3.8'
 services:
   todoapp:
     image: codecrasher2/todoapp:latest
     ports:
-      - "8080:8080"
+      - target: 8080
+        published: 8080
+        protocol: tcp
+        mode: host  # Viktigt för ALB health checks
+    
     dns:
       - 8.8.8.8
       - 8.8.4.4
+    
     environment:
       - AWS_REGION=eu-west-1
       - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+    
     deploy:
       replicas: 3
+      
+      # Placement constraints - kör endast på worker nodes
+      placement:
+        constraints:
+          - node.role == worker
+      
+      # Update strategy
+      update_config:
+        parallelism: 1      # En container åt gången
+        delay: 10s          # Vänta mellan updates
+        failure_action: rollback
+        monitor: 60s
+        max_failure_ratio: 0.3
+      
+      # Rollback configuration
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        failure_action: pause
+        monitor: 60s
+      
+      # Restart policy
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      
+      # Resource limits
+      resources:
+        limits:
+          cpus: '0.50'      # Max 50% av en CPU
+          memory: 512M      # Max 512MB RAM
+        reservations:
+          cpus: '0.25'      # Reservera 25% CPU
+          memory: 256M      # Reservera 256MB RAM
+    
+    # Health check i Swarm
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8080/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
     networks:
       - todo-network
 
 networks:
   todo-network:
     driver: overlay
+    attachable: true
+    driver_opts:
+      encrypted: "true"  # Krypterad kommunikation mellan noder
