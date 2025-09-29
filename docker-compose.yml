@@ -3,10 +3,8 @@ version: '3.8'
 services:
   todoapp:
     image: codecrasher2/todoapp:latest
-    ports:
-      - target: 8080
-        published: 8080
-        protocol: tcp
+    # Ports removed to prevent host-mode port conflicts
+    # ALB handles external routing to containers
     
     dns:
       - 8.8.8.8
