@@ -34,11 +34,19 @@ fi
 # Wait for deployment
 echo "Waiting for deployment..."
 for i in {1..30}; do
-    running=$(docker service ps "$SERVICE_NAME" --filter "desired-state=running" --format "{{.CurrentState}}" | grep -c "Running" || echo "0")
-    desired=$(docker service inspect "$SERVICE_NAME" --format "{{.Spec.Mode.Replicated.Replicas}}")
+    # Count running tasks properly
+    running=$(docker service ps "$SERVICE_NAME" \
+        --filter "desired-state=running" \
+        --format "{{.CurrentState}}" | \
+        grep -c "Running" 2>/dev/null || echo 0)
+    
+    desired=$(docker service inspect "$SERVICE_NAME" \
+        --format "{{.Spec.Mode.Replicated.Replicas}}")
 
-    if [ "$running" -eq "$desired" ]; then
-        echo "Deployment successful: $running/$desired tasks running"
+    echo "Status: $running/$desired tasks running"
+
+    if [ "$running" -eq "$desired" ] 2>/dev/null; then
+        echo "Deployment successful!"
         exit 0
     fi
 
@@ -46,4 +54,5 @@ for i in {1..30}; do
 done
 
 echo "Deployment timeout"
+docker service ps "$SERVICE_NAME" --no-trunc
 exit 1
