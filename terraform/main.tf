@@ -361,12 +361,13 @@ resource "aws_instance" "swarm_manager" {
 
 # Worker nodes
 resource "aws_instance" "swarm_workers" {
-  count                   = 2
+  count = 3
   ami                     = data.aws_ami.amazon_linux.id
   instance_type           = var.instance_type
   key_name                = aws_key_pair.todo_key.key_name
   vpc_security_group_ids  = [aws_security_group.todo_swarm_sg.id]
-  subnet_id               = count.index == 0 ? aws_subnet.todo_public_1.id : aws_subnet.todo_public_2.id  # Sprider över båda AZ:s
+  subnet_id = count.index % 2 == 0 ? aws_subnet.todo_public_1.id : aws_subnet.todo_public_2.id
+  # Round-robin över båda AZ:s
   iam_instance_profile    = aws_iam_instance_profile.ec2_dynamodb_profile.name
 
   # Workers behöver bara Docker, inte Compose

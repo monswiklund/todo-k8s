@@ -3,7 +3,6 @@ version: '3.8'
 services:
   todoapp:
     image: codecrasher2/todoapp:latest
-
     # Publicera port 8080 för ALB access
     ports:
       - "8080:8080"
@@ -19,9 +18,12 @@ services:
     
     deploy:
       replicas: 3
-      
-      # Placement constraints removed to allow scheduling on all nodes (manager + workers)
-      
+
+      # Placement constraints - endast köra på worker nodes (production best practice)
+      placement:
+        constraints:
+          - node.role == worker
+
       # Update strategy
       update_config:
         parallelism: 1      # En container åt gången
