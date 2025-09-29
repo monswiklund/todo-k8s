@@ -21,15 +21,9 @@ if [ -f "docker-compose.yml" ]; then
     sed -i.bak "s|image:.*|image: $IMAGE_TAG|g" docker-compose.yml
 fi
 
-# Deploy or update service
-if ! docker service ls --format "{{.Name}}" | grep -q "^${SERVICE_NAME}$"; then
-    echo "Creating new service"
-    docker stack deploy -c docker-compose.yml todoapp
-    sleep 30
-else
-    echo "Updating service"
-    docker service update --image "$IMAGE_TAG" "$SERVICE_NAME"
-fi
+# Always redeploy stack to ensure configuration changes are applied
+echo "Redeploying stack to apply configuration changes"
+docker stack deploy -c docker-compose.yml todoapp
 
 # Wait for deployment
 echo "Waiting for deployment..."
