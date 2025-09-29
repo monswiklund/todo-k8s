@@ -39,7 +39,6 @@ services:
     environment:
       - AWS_REGION=eu-west-1
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:8080
     deploy:
       replicas: 3
     networks:
