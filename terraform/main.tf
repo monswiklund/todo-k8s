@@ -264,9 +264,26 @@ resource "aws_iam_role" "ec2_dynamodb_role" {
 }
 
 # Ge rollen behörighet till DynamoDB
-resource "aws_iam_role_policy_attachment" "ec2_dynamodb_policy" {
-  role       = aws_iam_role.ec2_dynamodb_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"  # Full access för enkelhets skull
+resource "aws_iam_policy" "todo_minimal_policy" {
+  name        = "todo-dynamodb-minimal"
+  description = "Minimal permissions for TodoApp Tasks table"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Scan"
+        ]
+        Resource = "arn:aws:dynamodb:${var.aws_region}:*:table/Tasks"
+      }
+    ]
+  })
 }
 
 
