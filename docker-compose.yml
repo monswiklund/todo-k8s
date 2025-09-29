@@ -20,10 +20,7 @@ services:
     deploy:
       replicas: 3
       
-      # Placement constraints - kör endast på worker nodes
-      placement:
-        constraints:
-          - node.role == worker
+      # Placement constraints removed to allow scheduling on all nodes (manager + workers)
       
       # Update strategy
       update_config:
