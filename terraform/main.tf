@@ -315,7 +315,11 @@ resource "aws_iam_policy" "todo_minimal_policy" {
   })
 }
 
-
+# Attach DynamoDB policy to EC2 role
+resource "aws_iam_role_policy_attachment" "ec2_dynamodb_policy_attachment" {
+  role       = aws_iam_role.ec2_dynamodb_role.name
+  policy_arn = aws_iam_policy.todo_minimal_policy.arn
+}
 
 # Instance profile, kopplar IAM role till EC2 instances
 resource "aws_iam_instance_profile" "ec2_dynamodb_profile" {
