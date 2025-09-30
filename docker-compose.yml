@@ -66,6 +66,19 @@ services:
     networks:
       - todo-network
 
+  visualizer:
+    image: yandeu/visualizer:latest
+    ports:
+      - "8081:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+    networks:
+      - todo-network
+
 networks:
   todo-network:
     driver: overlay
