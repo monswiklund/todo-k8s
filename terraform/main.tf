@@ -368,14 +368,14 @@ resource "aws_instance" "swarm_manager" {
   key_name             = aws_key_pair.todo_key.key_name
   vpc_security_group_ids = [aws_security_group.todo_swarm_sg.id]
   subnet_id            = aws_subnet.todo_public_1.id
-  iam_instance_profile = aws_iam_instance_profile.ec2_dynamodb_profile.name # För DynamoDB access
+  iam_instance_profile = aws_iam_instance_profile.ec2_dynamodb_profile.name
 
-  # Installera Docker och Docker Compose automatiskt vid boot
+  # Minimal user_data - endast Docker install
+  # Swarm initialization görs manuellt (se terraform/MANUAL_SETUP.md)
   user_data = <<-EOF
     #!/bin/bash
     set -e
 
-    # Logging
     exec > >(tee /var/log/user-data.log)
     exec 2>&1
     echo "=== Manager Node Initialization Started at $(date) ==="
@@ -387,162 +387,12 @@ resource "aws_instance" "swarm_manager" {
     systemctl enable docker
     usermod -a -G docker ec2-user
 
-    # Docker Compose för stack management
+    # Docker Compose for manual stack management
     curl -L "https://github.com/docker/compose/releases/download/v2.39.4/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
 
-    # Wait for Docker to be ready
-    echo "Waiting for Docker to be ready..."
-    timeout=60
-    while ! docker info >/dev/null 2>&1; do
-      sleep 2
-      timeout=$((timeout-2))
-      if [ $timeout -le 0 ]; then
-        echo "ERROR: Docker failed to start"
-        exit 1
-      fi
-    done
-    echo "Docker is ready"
-
-    # Initialize Docker Swarm
-    echo "Initializing Docker Swarm..."
-    PRIVATE_IP=$(hostname -I | awk '{print $1}')
-
-    # Check if already in swarm and is manager
-    if docker node ls >/dev/null 2>&1; then
-      echo "Already initialized as swarm manager"
-    else
-      echo "Leaving any existing swarm state..."
-      docker swarm leave --force 2>/dev/null || true
-
-      echo "Initializing new swarm..."
-      docker swarm init --advertise-addr $PRIVATE_IP
-      echo "Swarm initialized successfully"
-    fi
-
-    # Generate and store worker token in SSM Parameter Store
-    echo "Storing worker token in SSM Parameter Store..."
-    WORKER_TOKEN=$(docker swarm join-token worker -q)
-    MANAGER_IP=$(docker info --format '{{.Swarm.NodeAddr}}')
-
-    aws ssm put-parameter \
-      --name "/swarm/worker-token" \
-      --value "$WORKER_TOKEN" \
-      --type "SecureString" \
-      --overwrite \
-      --region ${var.aws_region}
-
-    aws ssm put-parameter \
-      --name "/swarm/manager-ip" \
-      --value "$MANAGER_IP" \
-      --type "String" \
-      --overwrite \
-      --region ${var.aws_region}
-
-    # Deploy TodoApp stack automatically
-    echo "Deploying TodoApp stack..."
-
-    # Create docker-compose.yml
-    cat > /home/ec2-user/docker-compose.yml << 'COMPOSE_EOF'
-version: '3.8'
-services:
-  todoapp:
-    image: codecrasher2/todoapp:latest
-    ports:
-      - "8080:8080"
-
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-
-    environment:
-      - AWS_REGION=eu-west-1
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:8080
-
-    deploy:
-      replicas: 3
-
-      # Placement constraints - endast köra på worker nodes
-      placement:
-        constraints:
-          - node.role == worker
-
-      # Update strategy
-      update_config:
-        parallelism: 1
-        delay: 10s
-        failure_action: rollback
-        monitor: 60s
-        max_failure_ratio: 0.3
-
-      # Rollback configuration
-      rollback_config:
-        parallelism: 1
-        delay: 5s
-        failure_action: pause
-        monitor: 60s
-
-      # Restart policy
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
-
-      # Resource limits
-      resources:
-        limits:
-          cpus: '0.50'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-
-    # Health check
-    healthcheck:
-      test: [ "CMD-SHELL", "curl -f http://localhost:8080/health || exit 1" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-    networks:
-      - todo-network
-
-networks:
-  todo-network:
-    driver: overlay
-    attachable: true
-    driver_opts:
-      encrypted: "true"
-COMPOSE_EOF
-
-    chown ec2-user:ec2-user /home/ec2-user/docker-compose.yml
-
-    # Wait for workers to join (max 10 minutes)
-    echo "Waiting for workers to join swarm..."
-    for i in {1..60}; do
-      WORKER_COUNT=$(docker node ls --filter "role=worker" -q | wc -l)
-      echo "Workers joined: $WORKER_COUNT/3"
-
-      if [ "$WORKER_COUNT" -ge 3 ]; then
-        echo "All workers have joined!"
-        break
-      fi
-
-      sleep 10
-    done
-
-    # Deploy stack
-    echo "Deploying stack to swarm..."
-    docker stack deploy -c /home/ec2-user/docker-compose.yml todoapp
-
-    echo "Stack deployed! Checking status..."
-    sleep 10
-    docker stack ps todoapp
-
     echo "=== Manager Node Initialization Completed at $(date) ==="
+    echo "Docker installed. Run 'docker swarm init' to initialize swarm cluster."
   EOF
 
   tags = {
@@ -555,21 +405,20 @@ COMPOSE_EOF
 
 # Worker nodes
 resource "aws_instance" "swarm_workers" {
-  count         = 3
-  ami           = data.aws_ami.amazon_linux.id
-  instance_type = var.instance_type
-  key_name      = aws_key_pair.todo_key.key_name
+  count                = 3
+  ami                  = data.aws_ami.amazon_linux.id
+  instance_type        = var.instance_type
+  key_name             = aws_key_pair.todo_key.key_name
   vpc_security_group_ids = [aws_security_group.todo_swarm_sg.id]
-  subnet_id = count.index % 2 == 0 ? aws_subnet.todo_public_1.id : aws_subnet.todo_public_2.id
-  # Round-robin över båda AZ:s
+  subnet_id            = count.index % 2 == 0 ? aws_subnet.todo_public_1.id : aws_subnet.todo_public_2.id
   iam_instance_profile = aws_iam_instance_profile.ec2_dynamodb_profile.name
 
-  # Workers behöver bara Docker, inte Compose
+  # Minimal user_data - endast Docker install
+  # Workers joinat swarm manuellt med 'docker swarm join' (se terraform/MANUAL_SETUP.md)
   user_data = <<-EOF
     #!/bin/bash
     set -e
 
-    # Logging
     exec > >(tee /var/log/user-data.log)
     exec 2>&1
     echo "=== Worker Node Initialization Started at $(date) ==="
@@ -581,75 +430,8 @@ resource "aws_instance" "swarm_workers" {
     systemctl enable docker
     usermod -a -G docker ec2-user
 
-    # Wait for Docker to be ready
-    echo "Waiting for Docker to be ready..."
-    timeout=60
-    while ! docker info >/dev/null 2>&1; do
-      sleep 2
-      timeout=$((timeout-2))
-      if [ $timeout -le 0 ]; then
-        echo "ERROR: Docker failed to start"
-        exit 1
-      fi
-    done
-    echo "Docker is ready"
-
-    # Wait for manager to store token in SSM (max 5 minutes)
-    echo "Waiting for manager to store token in SSM..."
-    max_attempts=60
-    attempt=0
-    while [ $attempt -lt $max_attempts ]; do
-      if aws ssm get-parameter --name "/swarm/worker-token" --region ${var.aws_region} --with-decryption >/dev/null 2>&1; then
-        echo "Token found in SSM"
-        break
-      fi
-      echo "Waiting for token... (attempt $((attempt+1))/$max_attempts)"
-      sleep 5
-      attempt=$((attempt+1))
-    done
-
-    if [ $attempt -eq $max_attempts ]; then
-      echo "ERROR: Timeout waiting for swarm token"
-      exit 1
-    fi
-
-    # Retrieve token and manager IP from SSM
-    echo "Retrieving swarm token and manager IP from SSM..."
-    WORKER_TOKEN=$(aws ssm get-parameter \
-      --name "/swarm/worker-token" \
-      --region ${var.aws_region} \
-      --with-decryption \
-      --query 'Parameter.Value' \
-      --output text)
-
-    MANAGER_IP=$(aws ssm get-parameter \
-      --name "/swarm/manager-ip" \
-      --region ${var.aws_region} \
-      --query 'Parameter.Value' \
-      --output text)
-
-    echo "Manager IP: $MANAGER_IP"
-
-    # Join the swarm
-    echo "Joining Docker Swarm..."
-    max_join_attempts=10
-    join_attempt=0
-    while [ $join_attempt -lt $max_join_attempts ]; do
-      if docker swarm join --token "$WORKER_TOKEN" "$MANAGER_IP:2377" 2>&1; then
-        echo "Successfully joined swarm"
-        break
-      fi
-      echo "Join attempt failed, retrying... ($((join_attempt+1))/$max_join_attempts)"
-      sleep 10
-      join_attempt=$((join_attempt+1))
-    done
-
-    if [ $join_attempt -eq $max_join_attempts ]; then
-      echo "ERROR: Failed to join swarm after $max_join_attempts attempts"
-      exit 1
-    fi
-
     echo "=== Worker Node Initialization Completed at $(date) ==="
+    echo "Docker installed. Run 'docker swarm join' command from manager to join cluster."
   EOF
 
   tags = {
