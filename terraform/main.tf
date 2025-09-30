@@ -313,45 +313,10 @@ resource "aws_iam_policy" "todo_minimal_policy" {
   })
 }
 
-# SSM Parameter Store policy för Docker Swarm token management
-resource "aws_iam_policy" "swarm_ssm_policy" {
-  name        = "swarm-ssm-tokens"
-  description = "Allow EC2 instances to read/write swarm tokens in SSM Parameter Store"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "ssm:PutParameter",
-          "ssm:GetParameter",
-          "ssm:GetParameters",
-          "ssm:DeleteParameter"
-        ]
-        Resource = "arn:aws:ssm:${var.aws_region}:*:parameter/swarm/*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ssm:DescribeParameters"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-}
-
 # Attach DynamoDB policy to EC2 role
 resource "aws_iam_role_policy_attachment" "ec2_dynamodb_policy_attachment" {
   role       = aws_iam_role.ec2_dynamodb_role.name
   policy_arn = aws_iam_policy.todo_minimal_policy.arn
-}
-
-# Attach SSM policy to EC2 role
-resource "aws_iam_role_policy_attachment" "ec2_ssm_policy_attachment" {
-  role       = aws_iam_role.ec2_dynamodb_role.name
-  policy_arn = aws_iam_policy.swarm_ssm_policy.arn
 }
 
 # Instance profile, kopplar IAM role till EC2 instances

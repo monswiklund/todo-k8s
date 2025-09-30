@@ -35,7 +35,7 @@ output "ssh_workers" {
   description = "SSH to worker nodes"
   value = [
     for i, instance in aws_instance.swarm_workers :
-    "ssh -i ~/.ssh/id_rsa ec2-user@${instance.public_ip}  # worker-${i + 1}"
+    "ssh -i ~/.ssh/id_rsa -J ec2-user@${aws_eip.bastion_eip.public_ip} ec2-user@${instance.private_ip}  # worker-${i + 1}"
   ]
 }
 
@@ -100,16 +100,6 @@ output "github_secrets_required" {
     BASTION_HOST       = aws_eip.bastion_eip.public_ip
     MANAGER_PRIVATE_IP = aws_instance.swarm_manager.private_ip
     ALB_DNS_NAME       = aws_lb.todo_alb.dns_name
-  }
-}
-
-# SSM Parameter Store Information
-output "ssm_parameters" {
-  description = "SSM Parameter Store paths for Swarm tokens"
-  value = {
-    worker_token_path = "/swarm/worker-token"
-    manager_ip_path   = "/swarm/manager-ip"
-    region            = var.aws_region
   }
 }
 
