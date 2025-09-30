@@ -3,11 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <title>ToDo App</title>
+    <title>ToDo App - Skalbar, Container</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             padding: 20px;
             background-color: #f5f5f5;
@@ -18,7 +21,12 @@
             text-align: center;
         }
 
-        .task-container {
+        h2 {
+            color: #555;
+            margin-top: 0;
+        }
+
+        .container {
             background: white;
             border-radius: 8px;
             padding: 20px;
@@ -26,13 +34,89 @@
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        .btn-warning {
+            background-color: #ffc107;
+            color: black;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
         .task {
             border-bottom: 1px solid #eee;
             padding: 15px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
         }
 
         .task:last-child {
             border-bottom: none;
+        }
+
+        .task-content {
+            flex: 1;
         }
 
         .task-title {
@@ -53,6 +137,18 @@
             font-weight: bold;
         }
 
+        .task-id {
+            font-size: 11px;
+            color: #999;
+            margin-top: 5px;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 5px;
+            margin-left: 10px;
+        }
+
         .completed {
             background-color: #d4edda;
             color: #155724;
@@ -63,22 +159,28 @@
             color: #856404;
         }
 
-        .loading {
-            text-align: center;
-            color: #666;
-        }
-
-        .error {
-            color: #dc3545;
-            background-color: #f8d7da;
+        .message {
             padding: 10px;
             border-radius: 4px;
             margin: 10px 0;
         }
 
+        .error {
+            color: #dc3545;
+            background-color: #f8d7da;
+        }
+
+        .success {
+            color: #155724;
+            background-color: #d4edda;
+        }
+
         .api-links {
             text-align: center;
             margin-top: 30px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
         }
 
         .api-links a {
@@ -93,61 +195,49 @@
     </style>
 </head>
 <body>
-<h1>ToDo App Test 4</h1>
+<h1>ToDo App - Skalbar, Container</h1>
 
-<div class="loading" id="loading">
-    Laddar tasks...
+<div id="message-container"></div>
+
+<div class="container">
+    <h2>Skapa ny task</h2>
+    <form id="create-form">
+        <div class="form-group">
+            <label>Titel</label>
+            <input id="create-title" required type="text">
+        </div>
+        <div class="form-group">
+            <label>Beskrivning</label>
+            <textarea id="create-description"></textarea>
+        </div>
+        <div class="form-group checkbox-group">
+            <input id="create-completed" type="checkbox">
+            <label for="create-completed" style="margin: 0;">Färdig</label>
+        </div>
+        <button class="btn-primary" type="submit">Skapa task</button>
+    </form>
 </div>
 
-<div class="error" id="error-message" style="display: none;"></div>
-
-<div class="task-container" id="tasks-container" style="display: none;">
-    <h2>Tasks-ToDo</h2>
-    <div id="tasks-list"></div>
+<div class="container">
+    <h2>Tasks</h2>
+    <div id="tasks-list">Laddar...</div>
 </div>
 
 <div class="api-links">
-    <a href="/swagger">API Documentation (Swagger)</a> |
-    <a href="/todos">Raw JSON Data</a>
+    <a href="/swagger" target="_blank">API Documentation (Swagger)</a> |
+    <a href="/todos" target="_blank">Raw JSON Data</a>
 </div>
 
 <script>
-    async function loadTasks() {
-        try {
-            const response = await fetch('/todos');
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const tasks = await response.json();
+    let tasks = [];
 
-            document.getElementById('loading').style.display = 'none';
-
-            if (tasks.length === 0) {
-                document.getElementById('tasks-container').style.display = 'block';
-                document.getElementById('tasks-list').innerHTML = '<p>Inga tasks än. Använd API:et för att lägga till några!</p>';
-                return;
-            }
-
-            const tasksHtml = tasks.map(task => `
-                    <div class="task">
-                        <div class="task-title">${escapeHtml(task.title)}</div>
-                        ${task.description ? `<div class="task-description">${escapeHtml(task.description)}</div>` : ''}
-                        <span class="task-status ${task.isCompleted ? 'completed' : 'pending'}">
-                            ${task.isCompleted ? 'Färdig' : 'Pågående'}
-                        </span>
-                        <div style="font-size: 12px; color: #999; margin-top: 5px;">ID: ${task.id}</div>
-                    </div>
-                `).join('');
-
-            document.getElementById('tasks-list').innerHTML = tasksHtml;
-            document.getElementById('tasks-container').style.display = 'block';
-
-        } catch (error) {
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('error-message').style.display = 'block';
-            document.getElementById('error-message').textContent = `Fel vid laddning av tasks: ${error.message}`;
-            console.error('Error loading tasks:', error);
-        }
+    function showMessage(text, isError = false) {
+        const container = document.getElementById('message-container');
+        const div = document.createElement('div');
+        div.className = `message ${isError ? 'error' : 'success'}`;
+        div.textContent = text;
+        container.appendChild(div);
+        setTimeout(() => div.remove(), 5000);
     }
 
     function escapeHtml(text) {
@@ -156,10 +246,112 @@
         return div.innerHTML;
     }
 
-    // Ladda tasks när sidan laddas
-    document.addEventListener('DOMContentLoaded', loadTasks);
+    async function loadTasks() {
+        try {
+            const response = await fetch('/todos');
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            tasks = await response.json();
+            renderTasks();
+        } catch (error) {
+            document.getElementById('tasks-list').innerHTML =
+                `<div class="message error">Fel vid laddning: ${error.message}</div>`;
+        }
+    }
 
-    // Auto-refresh var 30:e sekund
+    function renderTasks() {
+        const container = document.getElementById('tasks-list');
+
+        if (tasks.length === 0) {
+            container.innerHTML = '<p>Inga tasks än.</p>';
+            return;
+        }
+
+        container.innerHTML = tasks.map(task => `
+                <div class="task">
+                    <div class="task-content">
+                        <div class="task-title">${escapeHtml(task.title)}</div>
+                        ${task.description ? `<div class="task-description">${escapeHtml(task.description)}</div>` : ''}
+                        <span class="task-status ${task.isCompleted ? 'completed' : 'pending'}">
+                            ${task.isCompleted ? 'Färdig' : 'Pågående'}
+                        </span>
+                        <div class="task-id">ID: ${task.id}</div>
+                    </div>
+                    <div class="task-actions">
+                        <button class="btn-warning" onclick="toggleComplete('${task.id}', ${!task.isCompleted})">
+                            ${task.isCompleted ? 'Markera som pågående' : 'Markera som färdig'}
+                        </button>
+                        <button class="btn-danger" onclick="deleteTask('${task.id}')">Ta bort</button>
+                    </div>
+                </div>
+            `).join('');
+    }
+
+    async function createTask(title, description, isCompleted) {
+        try {
+            const response = await fetch('/todos', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({title, description, isCompleted})
+            });
+
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+            showMessage('Task skapad!');
+            await loadTasks();
+            document.getElementById('create-form').reset();
+        } catch (error) {
+            showMessage(`Fel vid skapande: ${error.message}`, true);
+        }
+    }
+
+    async function deleteTask(id) {
+        if (!confirm('Är du säker på att du vill ta bort denna task?')) return;
+
+        try {
+            const response = await fetch(`/todos/${id}`, {method: 'DELETE'});
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+            showMessage('Task borttagen!');
+            await loadTasks();
+        } catch (error) {
+            showMessage(`Fel vid borttagning: ${error.message}`, true);
+        }
+    }
+
+    async function toggleComplete(id, isCompleted) {
+        const task = tasks.find(t => t.id === id);
+        if (!task) return;
+
+        try {
+            const response = await fetch(`/todos/${id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    title: task.title,
+                    description: task.description,
+                    isCompleted: isCompleted
+                })
+            });
+
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+            showMessage('Task uppdaterad!');
+            await loadTasks();
+        } catch (error) {
+            showMessage(`Fel vid uppdatering: ${error.message}`, true);
+        }
+    }
+
+    document.getElementById('create-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        createTask(
+            document.getElementById('create-title').value,
+            document.getElementById('create-description').value,
+            document.getElementById('create-completed').checked
+        );
+    });
+
+    loadTasks();
     setInterval(loadTasks, 30000);
 </script>
 </body>
