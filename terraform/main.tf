@@ -176,6 +176,15 @@ resource "aws_security_group" "todo_swarm_sg" {
     self      = true
   }
 
+  # SSH egress till bastion (för ProxyJump return traffic)
+  egress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
+    description = "SSH responses within VPC"
+  }
+
   tags = {
     Name = "todo-swarm-sg"
   }
