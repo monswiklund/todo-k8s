@@ -2,7 +2,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 6.0"  # Senaste version för multi-region stöd
+      version = "~> 6.0" # Senaste version för multi-region stöd
     }
   }
 }
@@ -13,8 +13,8 @@ provider "aws" {
 
 # Grundläggande nätverk, behöver egen VPC för kontroll över säkerhet
 resource "aws_vpc" "todo_vpc" {
-  cidr_block           = "10.0.0.0/16"  # Ger utrymme för ~65k IP-adresser
-  enable_dns_hostnames = true           # Krävs för AWS services att fungera
+  cidr_block = "10.0.0.0/16" # Ger utrymme för ~65k IP-adresser
+  enable_dns_hostnames = true          # Krävs för AWS services att fungera
   enable_dns_support   = true
 
   tags = {
@@ -34,9 +34,9 @@ resource "aws_internet_gateway" "todo_igw" {
 # Två subnets för hög tillgänglighet, om en AZ går ner finns backup
 resource "aws_subnet" "todo_public_1" {
   vpc_id                  = aws_vpc.todo_vpc.id
-  cidr_block              = "10.0.1.0/24"  # 251 användbara IPs
+  cidr_block = "10.0.1.0/24" # 251 användbara IPs
   availability_zone       = "${var.aws_region}a"
-  map_public_ip_on_launch = true  # Auto-assignar publika IPs
+  map_public_ip_on_launch = true # Auto-assignar publika IPs
 
   tags = {
     Name = "todo-public-1"
@@ -46,7 +46,7 @@ resource "aws_subnet" "todo_public_1" {
 resource "aws_subnet" "todo_public_2" {
   vpc_id                  = aws_vpc.todo_vpc.id
   cidr_block              = "10.0.2.0/24"
-  availability_zone       = "${var.aws_region}b"  # Annan AZ för redundans
+  availability_zone = "${var.aws_region}b" # Annan AZ för redundans
   map_public_ip_on_launch = true
 
   tags = {
@@ -59,7 +59,7 @@ resource "aws_route_table" "todo_public_rt" {
   vpc_id = aws_vpc.todo_vpc.id
 
   route {
-    cidr_block = "0.0.0.0/0"  # All trafik som inte är lokal
+    cidr_block = "0.0.0.0/0" # All trafik som inte är lokal
     gateway_id = aws_internet_gateway.todo_igw.id
   }
 
@@ -82,18 +82,10 @@ resource "aws_route_table_association" "todo_public_2_rta" {
 
 # EC2 Security Group, fungerar som brandvägg
 resource "aws_security_group" "todo_swarm_sg" {
-  name = "todo-swarm-"
-  vpc_id      = aws_vpc.todo_vpc.id
+  name   = "todo-swarm-"
+  vpc_id = aws_vpc.todo_vpc.id
 
   # SSH-regler hanteras via separata security group rules för flexibilitet
-
-  # Port 8080 från internet för direkt åtkomst (fallback)
-  ingress {
-    from_port = 8080
-    to_port   = 8080
-    protocol  = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 
   # Docker Swarm portar, bara mellan mina egna instances
   # Port 2377: Manager kommunikation
@@ -101,7 +93,7 @@ resource "aws_security_group" "todo_swarm_sg" {
     from_port = 2377
     to_port   = 2377
     protocol  = "tcp"
-    self      = true  # Bara från andra i samma security group
+    self = true # Bara från andra i samma security group
   }
 
   # Port 7946: Node discovery och communication
@@ -115,7 +107,7 @@ resource "aws_security_group" "todo_swarm_sg" {
   ingress {
     from_port = 7946
     to_port   = 7946
-    protocol  = "udp"  # Både TCP och UDP behövs
+    protocol = "udp" # Både TCP och UDP behövs
     self      = true
   }
 
@@ -230,13 +222,19 @@ resource "aws_security_group" "bastion_sg" {
   description = "Allow SSH to bastion host"
   vpc_id      = aws_vpc.todo_vpc.id
 
-  # SSH från internet till bastion 
+  # SSH från internet till bastion
+  # NOTE: 0.0.0.0/0 används för GitHub Actions CI/CD access
+  # ALTERNATIV SOM ÖVERVÄGDES:
+  # - AWS Systems Manager Session Manager (eliminerar SSH helt, men krånglade med setup)
+  # - GitHub-hosted runners self-hosted i VPC (för komplex för projektstorlek)
+  # - VPN-lösning (onödigt för utvecklingsmiljö)
+  # SÄKERHET: fail2ban + SSH key-only auth + härdad sshd_config används
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] // För github Actions, Kollade på SSM men krånglade och fastnae så här får duga
-    description = "SSH from internet to bastion host"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "SSH from internet for GitHub Actions CI/CD"
   }
 
   # Standard egress - tillåt all utgående trafik
@@ -255,7 +253,7 @@ resource "aws_security_group" "bastion_sg" {
 # SSH key så jag kan logga in på mina EC2 instances
 resource "aws_key_pair" "todo_key" {
   key_name   = "todo-swarm-key"
-  public_key = file("~/.ssh/id_rsa.pub")  # Förutsätter att jag har SSH-nyckel lokalt
+  public_key = file("~/.ssh/id_rsa.pub") # Förutsätter att jag har SSH-nyckel lokalt
 }
 
 # senaste Amazon Linux 2023 AMI 
@@ -265,7 +263,7 @@ data "aws_ami" "amazon_linux" {
 
   filter {
     name   = "name"
-    values = ["al2023-ami-*-x86_64"] 
+    values = ["al2023-ami-*-x86_64"]
   }
 }
 
@@ -315,10 +313,45 @@ resource "aws_iam_policy" "todo_minimal_policy" {
   })
 }
 
+# SSM Parameter Store policy för Docker Swarm token management
+resource "aws_iam_policy" "swarm_ssm_policy" {
+  name        = "swarm-ssm-tokens"
+  description = "Allow EC2 instances to read/write swarm tokens in SSM Parameter Store"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:PutParameter",
+          "ssm:GetParameter",
+          "ssm:GetParameters",
+          "ssm:DeleteParameter"
+        ]
+        Resource = "arn:aws:ssm:${var.aws_region}:*:parameter/swarm/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:DescribeParameters"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # Attach DynamoDB policy to EC2 role
 resource "aws_iam_role_policy_attachment" "ec2_dynamodb_policy_attachment" {
   role       = aws_iam_role.ec2_dynamodb_role.name
   policy_arn = aws_iam_policy.todo_minimal_policy.arn
+}
+
+# Attach SSM policy to EC2 role
+resource "aws_iam_role_policy_attachment" "ec2_ssm_policy_attachment" {
+  role       = aws_iam_role.ec2_dynamodb_role.name
+  policy_arn = aws_iam_policy.swarm_ssm_policy.arn
 }
 
 # Instance profile, kopplar IAM role till EC2 instances
@@ -330,25 +363,83 @@ resource "aws_iam_instance_profile" "ec2_dynamodb_profile" {
 
 # Manager node
 resource "aws_instance" "swarm_manager" {
-  ami                     = data.aws_ami.amazon_linux.id
-  instance_type           = var.instance_type
-  key_name                = aws_key_pair.todo_key.key_name
-  vpc_security_group_ids  = [aws_security_group.todo_swarm_sg.id]
-  subnet_id               = aws_subnet.todo_public_1.id
-  iam_instance_profile    = aws_iam_instance_profile.ec2_dynamodb_profile.name  # För DynamoDB access
+  ami                  = data.aws_ami.amazon_linux.id
+  instance_type        = var.instance_type
+  key_name             = aws_key_pair.todo_key.key_name
+  vpc_security_group_ids = [aws_security_group.todo_swarm_sg.id]
+  subnet_id            = aws_subnet.todo_public_1.id
+  iam_instance_profile = aws_iam_instance_profile.ec2_dynamodb_profile.name # För DynamoDB access
 
   # Installera Docker och Docker Compose automatiskt vid boot
   user_data = <<-EOF
     #!/bin/bash
+    set -e
+
+    # Logging
+    exec > >(tee /var/log/user-data.log)
+    exec 2>&1
+    echo "=== Manager Node Initialization Started at $(date) ==="
+
+    # Install Docker
     yum update -y
     yum install -y docker
     systemctl start docker
     systemctl enable docker
-    usermod -a -G docker ec2-user  # Låter ec2-user köra Docker utan sudo
+    usermod -a -G docker ec2-user
 
     # Docker Compose för stack management
     curl -L "https://github.com/docker/compose/releases/download/v2.39.4/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
+
+    # Wait for Docker to be ready
+    echo "Waiting for Docker to be ready..."
+    timeout=60
+    while ! docker info >/dev/null 2>&1; do
+      sleep 2
+      timeout=$((timeout-2))
+      if [ $timeout -le 0 ]; then
+        echo "ERROR: Docker failed to start"
+        exit 1
+      fi
+    done
+    echo "Docker is ready"
+
+    # Initialize Docker Swarm
+    echo "Initializing Docker Swarm..."
+    PRIVATE_IP=$(hostname -I | awk '{print $1}')
+
+    # Check if already in swarm and is manager
+    if docker node ls >/dev/null 2>&1; then
+      echo "Already initialized as swarm manager"
+    else
+      echo "Leaving any existing swarm state..."
+      docker swarm leave --force 2>/dev/null || true
+
+      echo "Initializing new swarm..."
+      docker swarm init --advertise-addr $PRIVATE_IP
+      echo "Swarm initialized successfully"
+    fi
+
+    # Generate and store worker token in SSM Parameter Store
+    echo "Storing worker token in SSM Parameter Store..."
+    WORKER_TOKEN=$(docker swarm join-token worker -q)
+    MANAGER_IP=$(docker info --format '{{.Swarm.NodeAddr}}')
+
+    aws ssm put-parameter \
+      --name "/swarm/worker-token" \
+      --value "$WORKER_TOKEN" \
+      --type "SecureString" \
+      --overwrite \
+      --region ${var.aws_region}
+
+    aws ssm put-parameter \
+      --name "/swarm/manager-ip" \
+      --value "$MANAGER_IP" \
+      --type "String" \
+      --overwrite \
+      --region ${var.aws_region}
+
+    echo "=== Manager Node Initialization Completed at $(date) ==="
   EOF
 
   tags = {
@@ -361,23 +452,101 @@ resource "aws_instance" "swarm_manager" {
 
 # Worker nodes
 resource "aws_instance" "swarm_workers" {
-  count = 3
-  ami                     = data.aws_ami.amazon_linux.id
-  instance_type           = var.instance_type
-  key_name                = aws_key_pair.todo_key.key_name
-  vpc_security_group_ids  = [aws_security_group.todo_swarm_sg.id]
+  count         = 3
+  ami           = data.aws_ami.amazon_linux.id
+  instance_type = var.instance_type
+  key_name      = aws_key_pair.todo_key.key_name
+  vpc_security_group_ids = [aws_security_group.todo_swarm_sg.id]
   subnet_id = count.index % 2 == 0 ? aws_subnet.todo_public_1.id : aws_subnet.todo_public_2.id
   # Round-robin över båda AZ:s
-  iam_instance_profile    = aws_iam_instance_profile.ec2_dynamodb_profile.name
+  iam_instance_profile = aws_iam_instance_profile.ec2_dynamodb_profile.name
 
   # Workers behöver bara Docker, inte Compose
   user_data = <<-EOF
     #!/bin/bash
+    set -e
+
+    # Logging
+    exec > >(tee /var/log/user-data.log)
+    exec 2>&1
+    echo "=== Worker Node Initialization Started at $(date) ==="
+
+    # Install Docker
     yum update -y
     yum install -y docker
     systemctl start docker
     systemctl enable docker
     usermod -a -G docker ec2-user
+
+    # Wait for Docker to be ready
+    echo "Waiting for Docker to be ready..."
+    timeout=60
+    while ! docker info >/dev/null 2>&1; do
+      sleep 2
+      timeout=$((timeout-2))
+      if [ $timeout -le 0 ]; then
+        echo "ERROR: Docker failed to start"
+        exit 1
+      fi
+    done
+    echo "Docker is ready"
+
+    # Wait for manager to store token in SSM (max 5 minutes)
+    echo "Waiting for manager to store token in SSM..."
+    max_attempts=60
+    attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+      if aws ssm get-parameter --name "/swarm/worker-token" --region ${var.aws_region} --with-decryption >/dev/null 2>&1; then
+        echo "Token found in SSM"
+        break
+      fi
+      echo "Waiting for token... (attempt $((attempt+1))/$max_attempts)"
+      sleep 5
+      attempt=$((attempt+1))
+    done
+
+    if [ $attempt -eq $max_attempts ]; then
+      echo "ERROR: Timeout waiting for swarm token"
+      exit 1
+    fi
+
+    # Retrieve token and manager IP from SSM
+    echo "Retrieving swarm token and manager IP from SSM..."
+    WORKER_TOKEN=$(aws ssm get-parameter \
+      --name "/swarm/worker-token" \
+      --region ${var.aws_region} \
+      --with-decryption \
+      --query 'Parameter.Value' \
+      --output text)
+
+    MANAGER_IP=$(aws ssm get-parameter \
+      --name "/swarm/manager-ip" \
+      --region ${var.aws_region} \
+      --query 'Parameter.Value' \
+      --output text)
+
+    echo "Manager IP: $MANAGER_IP"
+
+    # Join the swarm
+    echo "Joining Docker Swarm..."
+    max_join_attempts=10
+    join_attempt=0
+    while [ $join_attempt -lt $max_join_attempts ]; do
+      if docker swarm join --token "$WORKER_TOKEN" "$MANAGER_IP:2377" 2>&1; then
+        echo "Successfully joined swarm"
+        break
+      fi
+      echo "Join attempt failed, retrying... ($((join_attempt+1))/$max_join_attempts)"
+      sleep 10
+      join_attempt=$((join_attempt+1))
+    done
+
+    if [ $join_attempt -eq $max_join_attempts ]; then
+      echo "ERROR: Failed to join swarm after $max_join_attempts attempts"
+      exit 1
+    fi
+
+    echo "=== Worker Node Initialization Completed at $(date) ==="
   EOF
 
   tags = {
@@ -394,16 +563,17 @@ resource "aws_lb" "todo_alb" {
   security_groups = [aws_security_group.alb_sg.id]
   subnets = [aws_subnet.todo_public_1.id, aws_subnet.todo_public_2.id]
 
-  enable_deletion_protection = false  # För development
+  enable_deletion_protection = false # För development
 
   tags = {
     Name = "todo-swarm-alb"
   }
 }
 
-# Target Group för manager node
-resource "aws_lb_target_group" "todo_manager_tg" {
-  name     = "todo-manager-tg"
+# Target Group för worker nodes (BEST PRACTICE: Manager endast för fördelning)
+# Swarm routing mesh distribuerar trafik till containers som körs på workers
+resource "aws_lb_target_group" "todo_workers_tg" {
+  name = "todo-workers-tg"
   port     = 8080
   protocol = "HTTP"
   vpc_id   = aws_vpc.todo_vpc.id
@@ -421,14 +591,15 @@ resource "aws_lb_target_group" "todo_manager_tg" {
   }
 
   tags = {
-    Name = "todo-manager-tg"
+    Name = "todo-workers-tg"
   }
 }
 
-# Target Group Attachment för manager
-resource "aws_lb_target_group_attachment" "manager_attachment" {
-  target_group_arn = aws_lb_target_group.todo_manager_tg.arn
-  target_id        = aws_instance.swarm_manager.id
+# Target Group Attachments för alla worker nodes
+resource "aws_lb_target_group_attachment" "worker_attachments" {
+  count            = 3
+  target_group_arn = aws_lb_target_group.todo_workers_tg.arn
+  target_id        = aws_instance.swarm_workers[count.index].id
   port             = 8080
 }
 
@@ -440,7 +611,7 @@ resource "aws_lb_listener" "todo_listener" {
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.todo_manager_tg.arn
+    target_group_arn = aws_lb_target_group.todo_workers_tg.arn
   }
 }
 
@@ -462,18 +633,6 @@ resource "aws_security_group_rule" "alb_to_ec2_health" {
   source_security_group_id = aws_security_group.alb_sg.id
   security_group_id        = aws_security_group.todo_swarm_sg.id
 }
-
-# SSH Access Rules - Separata för flexibilitet och säkerhet
-resource "aws_security_group_rule" "admin_ssh" {
-  type              = "ingress"
-  from_port         = 22
-  to_port           = 22
-  protocol          = "tcp"
-  cidr_blocks = [var.admin_ip_cidr]
-  security_group_id = aws_security_group.todo_swarm_sg.id
-  description       = "SSH access for admin"
-}
-
 
 # Bastion Host Instance
 resource "aws_instance" "bastion" {

@@ -22,13 +22,7 @@ output "alb_zone_id" {
 
 output "target_group_arn" {
   description = "Target Group ARN"
-  value       = aws_lb_target_group.todo_manager_tg.arn
-}
-
-# Direct access URLs (backup/debugging)
-output "direct_manager_url" {
-  description = "Direct manager node URL (bypass ALB)"
-  value       = "http://${aws_instance.swarm_manager.public_ip}:8080"
+  value = aws_lb_target_group.todo_workers_tg.arn
 }
 
 # SSH access
@@ -109,14 +103,23 @@ output "github_secrets_required" {
   }
 }
 
+# SSM Parameter Store Information
+output "ssm_parameters" {
+  description = "SSM Parameter Store paths for Swarm tokens"
+  value = {
+    worker_token_path = "/swarm/worker-token"
+    manager_ip_path   = "/swarm/manager-ip"
+    region            = var.aws_region
+  }
+}
+
 # Deployment URLs
 output "deployment_endpoints" {
   description = "All deployment and monitoring endpoints"
   value = {
-    main_app      = "http://${aws_lb.todo_alb.dns_name}"
-    health_check  = "http://${aws_lb.todo_alb.dns_name}/health"
-    api_docs      = "http://${aws_lb.todo_alb.dns_name}/swagger"
-    direct_access = "http://${aws_instance.swarm_manager.public_ip}:8080"
+    main_app     = "http://${aws_lb.todo_alb.dns_name}"
+    health_check = "http://${aws_lb.todo_alb.dns_name}/health"
+    api_docs     = "http://${aws_lb.todo_alb.dns_name}/swagger"
   }
 }
 
