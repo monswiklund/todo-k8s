@@ -18,7 +18,31 @@ builder.Host.UseSerilog((context, services, configuration) =>
 
 // Swagger för API-dokumentation
 builder.Services.AddOpenApi();
-builder.Services.AddSwaggerGen();
+
+// Rate limiting - 100 requests per minut per IP
+builder.Services.AddRateLimiter(options =>
+{
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                Window = TimeSpan.FromMinutes(1),
+                PermitLimit = 100,
+                QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                QueueLimit = 10
+            }));
+
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await context.HttpContext.Response.WriteAsJsonAsync(new
+        {
+            error = "Rate limit exceeded. Please try again later.",
+            retryAfter = "60 seconds"
+        }, cancellationToken: token);
+    };
+});
 
 // AWS services setup
 builder.Services.AddAWSService<IAmazonDynamoDB>();
@@ -40,6 +64,9 @@ var app = builder.Build();
 // Serilog request logging
 app.UseSerilogRequestLogging();
 
+// Aktivera rate limiting
+app.UseRateLimiter();
+
 app.MapOpenApi();
 app.UseSwaggerUI(options => { options.SwaggerEndpoint("/openapi/v1.json", "v1"); });
 
@@ -49,9 +76,9 @@ app.UseStaticFiles();
 // Serve startpage istället för redirect
 app.MapGet("/", () => Results.File("~/index.html", "text/html"));
 
-// Hämta alla todos
-app.MapGet("/todos", async (TaskService taskService) =>
-    Results.Ok(await taskService.GetAllAsync())
+// Hämta alla todos med optional pagination
+app.MapGet("/todos", async (TaskService taskService, int? limit) =>
+    Results.Ok(await taskService.GetAllAsync(limit ?? 100))
 );
 
 // Hämta en specifik todo
@@ -62,16 +89,35 @@ app.MapGet("/todos/{id}", async (string id, TaskService service) =>
 });
 
 // Skapa ny todo
-app.MapPost("/todos", async (TaskModels newTask, TaskService service) =>
+app.MapPost("/todos", async (TodoTask newTask, TaskService service) =>
 {
+    // Validera input
+    if (string.IsNullOrWhiteSpace(newTask.Title))
+        return Results.BadRequest(new { error = "Title is required and cannot be empty" });
+
+    if (newTask.Title.Length > 200)
+        return Results.BadRequest(new { error = "Title cannot exceed 200 characters" });
+
     newTask.Id = Guid.NewGuid().ToString(); // Genererar nytt ID
     await service.CreateAsync(newTask);
     return Results.Created($"/todos/{newTask.Id}", newTask);
 });
 
 // Uppdatera todo
-app.MapPut("/todos/{id}", async (string id, TaskModels updatedTask, TaskService service) =>
+app.MapPut("/todos/{id}", async (string id, TodoTask updatedTask, TaskService service) =>
 {
+    // Validera input
+    if (string.IsNullOrWhiteSpace(updatedTask.Title))
+        return Results.BadRequest(new { error = "Title is required and cannot be empty" });
+
+    if (updatedTask.Title.Length > 200)
+        return Results.BadRequest(new { error = "Title cannot exceed 200 characters" });
+
+    // Verifiera att task existerar
+    var existing = await service.GetByIdAsync(id);
+    if (existing == null)
+        return Results.NotFound(new { error = $"Task with ID '{id}' not found" });
+
     updatedTask.Id = id; // Använder ID från URL
     await service.UpdateAsync(updatedTask);
     return Results.Ok(updatedTask);

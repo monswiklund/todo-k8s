@@ -1,8 +1,12 @@
+# ============================================================================
+# TERRAFORM & PROVIDER CONFIGURATION
+# ============================================================================
+
 terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 6.0" # Senaste version för multi-region stöd
+      version = "~> 6.0"
     }
   }
 }
@@ -10,6 +14,10 @@ terraform {
 provider "aws" {
   region = var.aws_region
 }
+
+# ============================================================================
+# NETWORKING - VPC, SUBNETS & ROUTING
+# ============================================================================
 
 # Grundläggande nätverk, behöver egen VPC för kontroll över säkerhet
 resource "aws_vpc" "todo_vpc" {
@@ -79,12 +87,16 @@ resource "aws_route_table_association" "todo_public_2_rta" {
   route_table_id = aws_route_table.todo_public_rt.id
 }
 
+# ============================================================================
+# SECURITY GROUPS
+# ============================================================================
 
 # EC2 Security Group, fungerar som brandvägg
 resource "aws_security_group" "todo_swarm_sg" {
   name   = "todo-swarm-"
   vpc_id = aws_vpc.todo_vpc.id
 
+  # --- Ingress Rules ---
   # SSH-regler hanteras via separata security group rules för flexibilitet
 
   # Docker Swarm portar, bara mellan mina egna instances
@@ -119,7 +131,9 @@ resource "aws_security_group" "todo_swarm_sg" {
     self      = true
   }
 
+  # --- Egress Rules ---
   # Specifik utgående trafik för säkerhet
+
   # HTTPS för paketuppdateringar och Docker Hub
   egress {
     from_port   = 443
@@ -224,7 +238,6 @@ resource "aws_security_group" "alb_sg" {
   }
 }
 
-
 # Bastion Host Security Group
 resource "aws_security_group" "bastion_sg" {
   name        = "bastion-sg"
@@ -233,10 +246,6 @@ resource "aws_security_group" "bastion_sg" {
 
   # SSH från internet till bastion
   # NOTE: 0.0.0.0/0 används för GitHub Actions CI/CD access
-  # ALTERNATIV SOM ÖVERVÄGDES:
-  # - AWS Systems Manager Session Manager (eliminerar SSH helt, men krånglade med setup)
-  # - GitHub-hosted runners self-hosted i VPC (för komplex för projektstorlek)
-  # - VPN-lösning (onödigt för utvecklingsmiljö)
   # SÄKERHET: fail2ban + SSH key-only auth + härdad sshd_config används
   ingress {
     from_port   = 22
@@ -259,13 +268,39 @@ resource "aws_security_group" "bastion_sg" {
   }
 }
 
+# ============================================================================
+# DYNAMODB TABLE
+# ============================================================================
+
+# Tasks table för TodoApp - DynamoDB med On-Demand billing
+resource "aws_dynamodb_table" "tasks" {
+  name     = "Tasks"
+  billing_mode = "PAY_PER_REQUEST"  # On-Demand för flexibel kostnad
+  hash_key = "Id"
+
+  attribute {
+    name = "Id"
+    type = "S"  # String
+  }
+
+  tags = {
+    Name        = "TodoApp-Tasks"
+    Environment = "Production"
+    ManagedBy   = "Terraform"
+  }
+}
+
+# ============================================================================
+# SSH KEY & AMI DATA
+# ============================================================================
+
 # SSH key så jag kan logga in på mina EC2 instances
 resource "aws_key_pair" "todo_key" {
   key_name   = "todo-swarm-key"
   public_key = file("~/.ssh/id_rsa.pub") # Förutsätter att jag har SSH-nyckel lokalt
 }
 
-# senaste Amazon Linux 2023 AMI 
+# Senaste Amazon Linux 2023 AMI
 data "aws_ami" "amazon_linux" {
   most_recent = true
   owners      = ["amazon"]
@@ -379,7 +414,7 @@ resource "aws_instance" "swarm_manager" {
 
 # Worker nodes
 resource "aws_instance" "swarm_workers" {
-  count                = 3
+  count = var.worker_count
   ami                  = data.aws_ami.amazon_linux.id
   instance_type        = var.instance_type
   key_name             = aws_key_pair.todo_key.key_name
@@ -456,7 +491,7 @@ resource "aws_lb_target_group" "todo_workers_tg" {
 
 # Target Group Attachments för alla worker nodes
 resource "aws_lb_target_group_attachment" "worker_attachments" {
-  count            = 3
+  count = var.worker_count
   target_group_arn = aws_lb_target_group.todo_workers_tg.arn
   target_id        = aws_instance.swarm_workers[count.index].id
   port             = 8080

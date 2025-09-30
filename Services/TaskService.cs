@@ -14,19 +14,20 @@ public class TaskService
         _logger = logger;
     }
 
-    public async Task<List<TaskModels>> GetAllAsync()
+    public async Task<List<TodoTask>> GetAllAsync(int limit = 100)
     {
-        _logger.LogInformation("Getting all tasks");
+        _logger.LogInformation("Getting all tasks with limit {Limit}", limit);
 
         try
         {
             var config = new DynamoDBOperationConfig
             {
-                OverrideTableName = "Tasks"
+                OverrideTableName = "Tasks",
+                Limit = limit
             };
 
-            var scan = _context.ScanAsync<TaskModels>(new List<ScanCondition>(), config);
-            var tasks = await scan.GetRemainingAsync();
+            var scan = _context.ScanAsync<TodoTask>(new List<ScanCondition>(), config);
+            var tasks = await scan.GetNextSetAsync();
 
             _logger.LogInformation("Retrieved {TaskCount} tasks", tasks.Count);
             return tasks;
@@ -38,7 +39,7 @@ public class TaskService
         }
     }
 
-    public async Task<TaskModels?> GetByIdAsync(string id)
+    public async Task<TodoTask?> GetByIdAsync(string id)
     {
         _logger.LogInformation("Getting task with ID: {TaskId}", id);
 
@@ -48,7 +49,7 @@ public class TaskService
             {
                 OverrideTableName = "Tasks"
             };
-            var task = await _context.LoadAsync<TaskModels>(id, config);
+            var task = await _context.LoadAsync<TodoTask>(id, config);
 
             if (task != null)
                 _logger.LogInformation("Found task {TaskId}: {TaskTitle}", id, task.Title);
@@ -64,7 +65,7 @@ public class TaskService
         }
     }
 
-    public async Task CreateAsync(TaskModels newTask)
+    public async Task CreateAsync(TodoTask newTask)
     {
         _logger.LogInformation("Creating new task: {TaskTitle} with ID: {TaskId}", newTask.Title, newTask.Id);
 
@@ -85,7 +86,7 @@ public class TaskService
         }
     }
 
-    public async Task UpdateAsync(TaskModels updatedTasks)
+    public async Task UpdateAsync(TodoTask updatedTasks)
     {
         _logger.LogInformation("Updating task {TaskId}: {TaskTitle}, Completed: {IsCompleted}",
             updatedTasks.Id, updatedTasks.Title, updatedTasks.IsCompleted);
@@ -98,9 +99,7 @@ public class TaskService
             };
             await _context.SaveAsync(updatedTasks, config);
 
-            if (updatedTasks.IsCompleted)
-
-                _logger.LogInformation("Successfully updated task {TaskId}", updatedTasks.Id);
+            _logger.LogInformation("Successfully updated task {TaskId}", updatedTasks.Id);
         }
         catch (Exception ex)
         {
@@ -119,7 +118,7 @@ public class TaskService
             {
                 OverrideTableName = "Tasks"
             };
-            await _context.DeleteAsync<TaskModels>(id, config);
+            await _context.DeleteAsync<TodoTask>(id, config);
 
             _logger.LogInformation("Successfully deleted task {TaskId}", id);
         }
