@@ -439,6 +439,109 @@ resource "aws_instance" "swarm_manager" {
       --overwrite \
       --region ${var.aws_region}
 
+    # Deploy TodoApp stack automatically
+    echo "Deploying TodoApp stack..."
+
+    # Create docker-compose.yml
+    cat > /home/ec2-user/docker-compose.yml << 'COMPOSE_EOF'
+version: '3.8'
+services:
+  todoapp:
+    image: codecrasher2/todoapp:latest
+    ports:
+      - "8080:8080"
+
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+
+    environment:
+      - AWS_REGION=eu-west-1
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+
+    deploy:
+      replicas: 3
+
+      # Placement constraints - endast köra på worker nodes
+      placement:
+        constraints:
+          - node.role == worker
+
+      # Update strategy
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: 60s
+        max_failure_ratio: 0.3
+
+      # Rollback configuration
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        failure_action: pause
+        monitor: 60s
+
+      # Restart policy
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+      # Resource limits
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+    # Health check
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8080/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    networks:
+      - todo-network
+
+networks:
+  todo-network:
+    driver: overlay
+    attachable: true
+    driver_opts:
+      encrypted: "true"
+COMPOSE_EOF
+
+    chown ec2-user:ec2-user /home/ec2-user/docker-compose.yml
+
+    # Wait for workers to join (max 10 minutes)
+    echo "Waiting for workers to join swarm..."
+    for i in {1..60}; do
+      WORKER_COUNT=$(docker node ls --filter "role=worker" -q | wc -l)
+      echo "Workers joined: $WORKER_COUNT/3"
+
+      if [ "$WORKER_COUNT" -ge 3 ]; then
+        echo "All workers have joined!"
+        break
+      fi
+
+      sleep 10
+    done
+
+    # Deploy stack
+    echo "Deploying stack to swarm..."
+    docker stack deploy -c /home/ec2-user/docker-compose.yml todoapp
+
+    echo "Stack deployed! Checking status..."
+    sleep 10
+    docker stack ps todoapp
+
     echo "=== Manager Node Initialization Completed at $(date) ==="
   EOF
 
