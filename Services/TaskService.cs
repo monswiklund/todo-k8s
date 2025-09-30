@@ -22,8 +22,7 @@ public class TaskService
         {
             var config = new DynamoDBOperationConfig
             {
-                OverrideTableName = "Tasks",
-                Limit = limit
+                OverrideTableName = "Tasks"
             };
 
             var scan = _context.ScanAsync<TodoTask>(new List<ScanCondition>(), config);
