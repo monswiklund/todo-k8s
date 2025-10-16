@@ -99,3 +99,4 @@ För Helm ändra `spec.source.path` till `kub8/charts/todo` och lägg till `helm
 - Bygg och pusha en produktionsimage (`docker build` + registry).
 - Städa bort den deployment-variant (rå manifests eller Helm) du inte tänker använda långsiktigt.
 # k8-test
+# todo-k8s
