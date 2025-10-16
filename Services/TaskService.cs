@@ -1,16 +1,16 @@
-using Amazon.DynamoDBv2.DataModel;
+using MongoDB.Driver;
 using ToDoApp.Models;
 
 namespace ToDoApp.Services;
 
 public class TaskService
 {
-    private readonly IDynamoDBContext _context;
+    private readonly IMongoCollection<TodoTask> _tasks;
     private readonly ILogger<TaskService> _logger;
 
-    public TaskService(IDynamoDBContext context, ILogger<TaskService> logger)
+    public TaskService(IMongoCollection<TodoTask> tasks, ILogger<TaskService> logger)
     {
-        _context = context;
+        _tasks = tasks;
         _logger = logger;
     }
 
@@ -20,13 +20,9 @@ public class TaskService
 
         try
         {
-            var config = new DynamoDBOperationConfig
-            {
-                OverrideTableName = "Tasks"
-            };
-
-            var scan = _context.ScanAsync<TodoTask>(new List<ScanCondition>(), config);
-            var tasks = await scan.GetNextSetAsync();
+            var tasks = await _tasks.Find(Builders<TodoTask>.Filter.Empty)
+                .Limit(limit)
+                .ToListAsync();
 
             _logger.LogInformation("Retrieved {TaskCount} tasks", tasks.Count);
             return tasks;
@@ -44,11 +40,7 @@ public class TaskService
 
         try
         {
-            var config = new DynamoDBOperationConfig
-            {
-                OverrideTableName = "Tasks"
-            };
-            var task = await _context.LoadAsync<TodoTask>(id, config);
+            var task = await _tasks.Find(t => t.Id == id).FirstOrDefaultAsync();
 
             if (task != null)
                 _logger.LogInformation("Found task {TaskId}: {TaskTitle}", id, task.Title);
@@ -70,11 +62,7 @@ public class TaskService
 
         try
         {
-            var config = new DynamoDBOperationConfig
-            {
-                OverrideTableName = "Tasks"
-            };
-            await _context.SaveAsync(newTask, config);
+            await _tasks.InsertOneAsync(newTask);
 
             _logger.LogInformation("Successfully created task {TaskId}: {TaskTitle}", newTask.Id, newTask.Title);
         }
@@ -92,11 +80,13 @@ public class TaskService
 
         try
         {
-            var config = new DynamoDBOperationConfig
+            var result = await _tasks.ReplaceOneAsync(task => task.Id == updatedTasks.Id, updatedTasks);
+
+            if (result.MatchedCount == 0)
             {
-                OverrideTableName = "Tasks"
-            };
-            await _context.SaveAsync(updatedTasks, config);
+                _logger.LogWarning("No task found to update with ID {TaskId}", updatedTasks.Id);
+                throw new KeyNotFoundException($"Task with ID '{updatedTasks.Id}' not found.");
+            }
 
             _logger.LogInformation("Successfully updated task {TaskId}", updatedTasks.Id);
         }
@@ -113,11 +103,10 @@ public class TaskService
 
         try
         {
-            var config = new DynamoDBOperationConfig
-            {
-                OverrideTableName = "Tasks"
-            };
-            await _context.DeleteAsync<TodoTask>(id, config);
+            var result = await _tasks.DeleteOneAsync(task => task.Id == id);
+
+            if (result.DeletedCount == 0)
+                _logger.LogWarning("No task found to delete with ID {TaskId}", id);
 
             _logger.LogInformation("Successfully deleted task {TaskId}", id);
         }

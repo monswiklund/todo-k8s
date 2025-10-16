@@ -1,0 +1,16 @@
+# Headless service exposing MongoDB to the Todo app
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: todo-app
+  labels:
+    app: mongo
+spec:
+  clusterIP: None
+  selector:
+    app: mongo
+  ports:
+    - name: mongo
+      port: 27017
+      targetPort: mongo

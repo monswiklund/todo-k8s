@@ -1,6 +1,6 @@
 using System.Threading.RateLimiting;
-using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.DataModel;
+using MongoDB.Bson;
+using MongoDB.Driver;
 using ToDoApp.Models;
 using ToDoApp.Services;
 using Serilog;
@@ -45,17 +45,27 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-// AWS services setup
-builder.Services.AddAWSService<IAmazonDynamoDB>();
-builder.Services.AddSingleton<IDynamoDBContext>(provider =>
+// MongoDB setup
+var mongoConnectionString =
+    builder.Configuration["MONGO_CONNECTION_STRING"] ??
+    builder.Configuration["Mongo:ConnectionString"];
+
+if (string.IsNullOrWhiteSpace(mongoConnectionString))
+    throw new InvalidOperationException("MongoDB connection string is not configured. Set env var MONGO_CONNECTION_STRING or Mongo:ConnectionString in appsettings.");
+
+var mongoUrl = MongoUrl.Create(mongoConnectionString);
+var databaseName = string.IsNullOrWhiteSpace(mongoUrl.DatabaseName) ? "todo" : mongoUrl.DatabaseName;
+
+builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoUrl));
+builder.Services.AddSingleton<IMongoDatabase>(sp =>
 {
-    var client = provider.GetRequiredService<IAmazonDynamoDB>();
-    var config = new DynamoDBContextConfig
-    {
-        // Fick problem med att containers kraschade pga DescribeTable-anrop så skippar metadata loading
-        DisableFetchingTableMetadata = true
-    };
-    return new DynamoDBContext(client, config);
+    var client = sp.GetRequiredService<IMongoClient>();
+    return client.GetDatabase(databaseName);
+});
+builder.Services.AddSingleton<IMongoCollection<TodoTask>>(sp =>
+{
+    var database = sp.GetRequiredService<IMongoDatabase>();
+    return database.GetCollection<TodoTask>("Tasks");
 });
 
 builder.Services.AddScoped<TaskService>();
@@ -131,18 +141,20 @@ app.MapDelete("/todos/{id}", async (string id, TaskService service) =>
     return Results.NoContent();
 });
 
-// Health check endpoint för ALB med Docker Swarm status
-app.MapGet("/health", async () =>
+// Health check endpoint that verifies MongoDB connectivity
+app.MapGet("/health", async (IMongoDatabase database) =>
 {
     try
     {
+        await database.RunCommandAsync<BsonDocument>(new BsonDocument("ping", 1));
+
         var healthData = new
         {
             status = "healthy",
             timestamp = DateTime.UtcNow,
             version = "3.0",
             environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
-            aws_region = Environment.GetEnvironmentVariable("AWS_REGION"),
+            database = database.DatabaseNamespace.DatabaseName,
             hostname = Environment.MachineName
         };
 
@@ -155,6 +167,7 @@ app.MapGet("/health", async () =>
             status = "unhealthy",
             timestamp = DateTime.UtcNow,
             error = ex.Message,
+            database = database.DatabaseNamespace.DatabaseName,
             version = "3.0"
         };
 

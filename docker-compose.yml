@@ -12,9 +12,9 @@ services:
       - 8.8.4.4
     
     environment:
-      - AWS_REGION=eu-west-1
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
+      - MONGO_CONNECTION_STRING=mongodb://todo-user:todo-pass@mongo:27017/todo
     
     deploy:
       replicas: 3

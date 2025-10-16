@@ -1,12 +1,15 @@
-using Amazon.DynamoDBv2.DataModel;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Attributes;
 
 namespace ToDoApp.Models;
 
-[DynamoDBTable("Tasks")]
+[BsonIgnoreExtraElements]
 public class TodoTask
 {
-    // Primary key i DynamoDB - genererar automatiskt nytt GUID
-    [DynamoDBHashKey] public string Id { get; set; } = Guid.NewGuid().ToString();
+    // Identifier saved as string to keep compatibility with existing clients
+    [BsonId]
+    [BsonRepresentation(BsonType.String)]
+    public string Id { get; set; } = Guid.NewGuid().ToString();
 
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
