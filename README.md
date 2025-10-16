@@ -12,15 +12,15 @@ Det här projektet har moderniserats från DynamoDB till MongoDB och försetts m
 
 ## Kör lokalt
 1. Installera .NET 9 SDK och en MongoDB-instans (t.ex. Docker eller Atlas).  
-2. Sätt anslutningssträngen (exempel för Atlas):
+2. Sätt anslutningssträngen (exempel med platshållare för Atlas):
    ```bash
-   export MONGO_CONNECTION_STRING="mongodb+srv://todo-user:todo-pass@cluster0.ldy3bdu.mongodb.net/todo-app?retryWrites=true&w=majority&appName=Cluster0"
+   export MONGO_CONNECTION_STRING="mongodb+srv://<mongo-user>:<mongo-password>@cluster0.example.mongodb.net/todo-app?retryWrites=true&w=majority"
    ```
    eller ändra `appsettings.json`:
    ```json
    {
      "Mongo": {
-       "ConnectionString": "mongodb+srv://todo-user:todo-pass@cluster0.ldy3bdu.mongodb.net/todo-app"
+       "ConnectionString": "mongodb+srv://<mongo-user>:<mongo-password>@cluster0.example.mongodb.net/todo-app"
      }
    }
    ```
@@ -37,7 +37,7 @@ Det här projektet har moderniserats från DynamoDB till MongoDB och försetts m
 ## Docker Compose
 `docker-compose.yml` injicerar rätt miljövariabler. Lägg till en MongoDB-tjänst eller peka mot extern instans, exempel:
 ```bash
-MONGO_CONNECTION_STRING="mongodb://todo-user:todo-pass@mongo:27017/todo-app?authSource=admin" docker compose up
+MONGO_CONNECTION_STRING="mongodb://<mongo-user>:<mongo-password>@mongo:27017/todo-app?authSource=admin" docker compose up
 ```
 
 ## Kubernetes-manifests
@@ -45,7 +45,14 @@ MONGO_CONNECTION_STRING="mongodb://todo-user:todo-pass@mongo:27017/todo-app?auth
 kubectl create namespace todo-app
 kubectl apply -f k8s/
 ```
-Anpassa `k8s/mongo-secret.yaml` med din riktiga MongoDB-URI (Atlas fungerar direkt).  
+Skapa hemligheten med dina riktiga uppgifter innan du deployar, exempel:
+```bash
+kubectl create secret generic mongo-credentials \
+  --from-literal=MONGO_USER=<mongo-user> \
+  --from-literal=MONGO_PASSWORD=<mongo-password> \
+  --from-literal=MONGO_URI="mongodb+srv://<mongo-user>:<mongo-password>@cluster0.example.mongodb.net/todo-app?retryWrites=true&w=majority" \
+  -n todo-app
+```
 Port-forward för test:
 ```bash
 kubectl port-forward svc/todo-service 8080:80 -n todo-app
@@ -91,3 +98,4 @@ För Helm ändra `spec.source.path` till `kub8/charts/todo` och lägg till `helm
 - Sätt upp DNS för `todo.<domain>` och peka mot ingressens IP/ALB.
 - Bygg och pusha en produktionsimage (`docker build` + registry).
 - Städa bort den deployment-variant (rå manifests eller Helm) du inte tänker använda långsiktigt.
+# k8-test
