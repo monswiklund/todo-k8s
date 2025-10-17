@@ -46,7 +46,7 @@ spec:
               EOF
           env:
             - name: MONGO_HOST
-              value: {{ include "todo-app.componentName" (list . "mongodb") }}
+              value: todo-app-mongodb-0.todo-app-mongodb.todo-app.svc.cluster.local
             - name: MONGO_PORT
               value: "{{ .Values.mongodb.service.port }}"
             - name: MONGO_ROOT_USERNAME
