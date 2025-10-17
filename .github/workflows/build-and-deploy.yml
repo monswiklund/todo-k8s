@@ -61,8 +61,8 @@ jobs:
 
       - name: Update image tags in Helm values
         run: |
-          sed -i '0,/tag:/s//tag: '"${IMAGE_TAG}"'/' charts/todo/values.yaml
-          sed -i '0,/tag:/s//tag: '"${IMAGE_TAG}"'/' charts/todo/values-eks-ghcr.yaml
+          sed -i 's|^\(\s*tag:\s*\).*|\1latest|' charts/todo/values.yaml
+          sed -i 's|^\(\s*tag:\s*\).*|\1latest|' charts/todo/values-eks-ghcr.yaml
 
       - name: Commit updated values
         run: |
