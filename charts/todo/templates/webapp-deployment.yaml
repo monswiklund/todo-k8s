@@ -39,12 +39,17 @@ spec:
           ports:
             - containerPort: {{ .Values.webapp.service.targetPort }}
               name: http
+          env:
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-credentials
+                  key: MONGO_URI
+            - name: TODO_DATABASE_NAME
+              value: "{{ .Values.mongodb.database }}"
           envFrom:
             - configMapRef:
                 name: {{ include "todo-app.componentName" (list . "webapp-config") }}
-          env:
-            - name: TODO_DATABASE_NAME
-              value: "{{ .Values.mongodb.database }}"
           readinessProbe:
             httpGet:
               path: /health
