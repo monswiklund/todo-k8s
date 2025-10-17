@@ -66,7 +66,7 @@ mongoExpress:
 storageClass:
   enabled: true
   name: ebs-sc
-  provisioner: ebs.csi.eks.amazonaws.com
+  provisioner: ebs.csi.aws.com
   parameters:
     type: gp3
     encrypted: "true"

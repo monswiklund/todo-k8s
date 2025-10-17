@@ -77,6 +77,11 @@ resource "aws_iam_role_policy_attachment" "eks_node_elb4" {
   role       = aws_iam_role.node_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2FullAccess"
 }
+
+resource "aws_iam_role_policy_attachment" "node_ebs_csi_policy" {
+  role       = aws_iam_role.node_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+}
 # Managed Node Group
 resource "aws_eks_node_group" "default" {
   cluster_name    = aws_eks_cluster.this.name
