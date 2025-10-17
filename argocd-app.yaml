@@ -1,4 +1,3 @@
-# Argo CD Application som synkar Todo-appen från Git till EKS
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -9,7 +8,10 @@ spec:
   source:
     repoURL: https://github.com/monswiklund/todo-k8s.git
     targetRevision: main
-    path: charts/todo 
+    path: charts/todo
+    helm:
+      valueFiles:
+        - values-eks-ghcr.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: todo-app
@@ -17,3 +19,102 @@ spec:
     automated:
       prune: true
       selfHeal: true
+  revisionHistoryLimit: 5
+  ignoreDifferences:
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /spec/clusterIP
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: todo-app-dev
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/monswiklund/todo-k8s.git
+    targetRevision: dev
+    path: charts/todo
+    helm:
+      valueFiles:
+        - values-docker-desktop.yaml
+      parameters:
+        - name: global.namespace
+          value: todo-app-dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: todo-app-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+  revisionHistoryLimit: 5
+  ignoreDifferences:
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /spec/clusterIP
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: todo-app-stg
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/monswiklund/todo-k8s.git
+    targetRevision: staging
+    path: charts/todo
+    helm:
+      valueFiles:
+        - values-eks-ghcr.yaml
+      parameters:
+        - name: global.namespace
+          value: todo-app-stg
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: todo-app-stg
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+  revisionHistoryLimit: 5
+  ignoreDifferences:
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /spec/clusterIP
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: todo-app-prod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/monswiklund/todo-k8s.git
+    targetRevision: main
+    path: charts/todo
+    helm:
+      valueFiles:
+        - values-eks-ghcr.yaml
+      parameters:
+        - name: global.namespace
+          value: todo-app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: todo-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+  revisionHistoryLimit: 5
+  ignoreDifferences:
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /spec/clusterIP

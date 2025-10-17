@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "todo-app.componentName" (list . "mongodb") }}
+  namespace: {{ include "todo-app.namespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/health-check: |
+      hs = {}
+      if obj.status ~= nil and obj.status.readyReplicas == obj.spec.replicas then
+        hs.status = "Healthy"
+      else
+        hs.status = "Progressing"
+      end
+      return hs
+  labels:
+    {{- include "todo-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mongodb
+spec:
+  serviceName: {{ include "todo-app.componentName" (list . "mongodb") }}
+  replicas: {{ .Values.mongodb.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "todo-app.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: mongodb
+  template:
+    metadata:
+      labels:
+        {{- include "todo-app.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: "{{ .Values.mongodb.image.repository }}:{{ .Values.mongodb.image.tag }}"
+          imagePullPolicy: {{ .Values.mongodb.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.mongodb.service.port }}
+              name: mongodb
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              value: "{{ .Values.mongodb.auth.rootUsername }}"
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              value: "{{ .Values.mongodb.auth.rootPassword }}"
+            - name: MONGO_INITDB_DATABASE
+              value: "{{ .Values.mongodb.database }}"
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+  volumeClaimTemplates:
+    - metadata:
+        name: mongo-data
+      spec:
+        accessModes:
+          {{- toYaml .Values.mongodb.storage.accessModes | nindent 8 }}
+        storageClassName: {{ .Values.mongodb.storage.storageClass | quote }}
+        resources:
+          requests:
+            storage: {{ .Values.mongodb.storage.size }}

@@ -1,0 +1,16 @@
+global:
+  namespace: todo-app
+
+webapp:
+  service:
+    type: ClusterIP
+    annotations: {}
+  env:
+    mongoUri: mongodb://todoapp:changeme@todo-app-mongodb:27017/ToDoAppDb?authSource=admin
+
+storageClass:
+  enabled: false
+
+mongodb:
+  storage:
+    storageClass: ""

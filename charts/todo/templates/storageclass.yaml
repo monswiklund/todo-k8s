@@ -1,0 +1,15 @@
+{{- if .Values.storageClass.enabled }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Values.storageClass.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    {{- include "todo-app.labels" . | nindent 4 }}
+provisioner: {{ .Values.storageClass.provisioner }}
+parameters:
+  {{- toYaml .Values.storageClass.parameters | nindent 2 }}
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+{{- end }}

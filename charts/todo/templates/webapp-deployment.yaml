@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "todo-app.componentName" (list . "webapp") }}
+  namespace: {{ include "todo-app.namespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/health-check: |
+      hs = {}
+      if obj.status ~= nil and obj.status.readyReplicas ~= nil and obj.status.readyReplicas == obj.spec.replicas then
+        hs.status = "Healthy"
+      else
+        hs.status = "Progressing"
+      end
+      return hs
+  labels:
+    {{- include "todo-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webapp
+spec:
+  replicas: {{ .Values.webapp.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "todo-app.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: webapp
+  template:
+    metadata:
+      labels:
+        {{- include "todo-app.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: webapp
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: todo-webapp
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.webapp.service.targetPort }}
+              name: http
+          envFrom:
+            - configMapRef:
+                name: {{ include "todo-app.componentName" (list . "webapp-config") }}
+          env:
+            - name: TODO_DATABASE_NAME
+              value: "{{ .Values.mongodb.database }}"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          {{- with .Values.webapp.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.webapp.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.webapp.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.webapp.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

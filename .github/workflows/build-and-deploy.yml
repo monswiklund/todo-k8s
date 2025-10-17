@@ -1,0 +1,77 @@
+name: Build and Deploy Todo App
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/monswiklund/todo-app
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Define image tag
+        id: meta
+        run: |
+          TAG=$(git rev-parse --short HEAD)
+          echo "IMAGE_TAG=${TAG}" >> $GITHUB_ENV
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ env.IMAGE_NAME }}:latest
+
+      - name: Helm lint
+        run: helm lint charts/todo
+
+      - name: Helm template (EKS values)
+        run: helm template charts/todo -f charts/todo/values-eks-ghcr.yaml
+
+      - name: Update image tags in Helm values
+        run: |
+          sed -i "0,/tag: /s//tag: ${IMAGE_TAG}/" charts/todo/values.yaml
+          sed -i "0,/tag: /s//tag: ${IMAGE_TAG}/" charts/todo/values-eks-ghcr.yaml
+
+      - name: Commit updated values
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet charts/todo/values.yaml charts/todo/values-eks-ghcr.yaml; then
+            echo "No changes to commit"
+          else
+            git add charts/todo/values.yaml charts/todo/values-eks-ghcr.yaml
+            git commit -m "chore: update image tag to ${IMAGE_TAG}"
+            git push
+          fi

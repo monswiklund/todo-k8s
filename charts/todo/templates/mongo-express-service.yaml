@@ -1,0 +1,19 @@
+{{- if .Values.mongoExpress.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "todo-app.componentName" (list . "mongo-express") }}
+  namespace: {{ include "todo-app.namespace" . }}
+  labels:
+    {{- include "todo-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mongo-express
+spec:
+  type: {{ .Values.mongoExpress.service.type | default "ClusterIP" }}
+  selector:
+    {{- include "todo-app.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mongo-express
+  ports:
+    - name: http
+      port: {{ .Values.mongoExpress.service.port }}
+      targetPort: http
+{{- end }}

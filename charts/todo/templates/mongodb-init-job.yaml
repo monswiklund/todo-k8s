@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "todo-app.componentName" (list . "mongodb-init") }}
+  namespace: {{ include "todo-app.namespace" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/health-check: |
+      hs = {}
+      if obj.status ~= nil and obj.status.succeeded ~= nil and obj.status.succeeded > 0 then
+        hs.status = "Healthy"
+      else
+        hs.status = "Progressing"
+      end
+      return hs
+  labels:
+    {{- include "todo-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mongodb-init
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "todo-app.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: mongodb-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mongodb-init
+          image: "{{ .Values.mongodb.image.repository }}:{{ .Values.mongodb.image.tag }}"
+          imagePullPolicy: {{ .Values.mongodb.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              until mongo --host "${MONGO_HOST}" --port "${MONGO_PORT}" -u "${MONGO_ROOT_USERNAME}" -p "${MONGO_ROOT_PASSWORD}" --authenticationDatabase admin --eval "db.adminCommand('ping')" >/dev/null 2>&1; do
+                echo "Waiting for MongoDB..."
+                sleep 5
+              done
+              mongo "mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@${MONGO_HOST}:${MONGO_PORT}/admin" --quiet <<'EOF'
+              db = db.getSiblingDB("{{ .Values.mongodb.database }}")
+              if (db.getUser("{{ .Values.mongodb.auth.appUsername }}") == null) {
+                db.createUser({user: "{{ .Values.mongodb.auth.appUsername }}", pwd: "{{ .Values.mongodb.auth.appPassword }}", roles: [{role: "readWrite", db: "{{ .Values.mongodb.database }}" }]})
+              }
+              EOF
+          env:
+            - name: MONGO_HOST
+              value: {{ include "todo-app.componentName" (list . "mongodb") }}
+            - name: MONGO_PORT
+              value: "{{ .Values.mongodb.service.port }}"
+            - name: MONGO_ROOT_USERNAME
+              value: "{{ .Values.mongodb.auth.rootUsername }}"
+            - name: MONGO_ROOT_PASSWORD
+              value: "{{ .Values.mongodb.auth.rootPassword }}"
