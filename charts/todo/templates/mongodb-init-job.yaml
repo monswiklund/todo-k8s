@@ -34,11 +34,11 @@ spec:
             - -c
             - |
               set -e
-              until mongo --host "${MONGO_HOST}" --port "${MONGO_PORT}" -u "${MONGO_ROOT_USERNAME}" -p "${MONGO_ROOT_PASSWORD}" --authenticationDatabase admin --eval "db.adminCommand('ping')" >/dev/null 2>&1; do
+              until mongosh --host "${MONGO_HOST}" --port "${MONGO_PORT}" -u "${MONGO_ROOT_USERNAME}" -p "${MONGO_ROOT_PASSWORD}" --authenticationDatabase admin --eval "db.adminCommand('ping')" >/dev/null 2>&1; do
                 echo "Waiting for MongoDB..."
                 sleep 5
               done
-              mongo "mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@${MONGO_HOST}:${MONGO_PORT}/admin" --quiet <<'EOF'
+              mongosh "mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@${MONGO_HOST}:${MONGO_PORT}/admin" --quiet <<'EOF'
               db = db.getSiblingDB("{{ .Values.mongodb.database }}")
               if (db.getUser("{{ .Values.mongodb.auth.appUsername }}") == null) {
                 db.createUser({user: "{{ .Values.mongodb.auth.appUsername }}", pwd: "{{ .Values.mongodb.auth.appPassword }}", roles: [{role: "readWrite", db: "{{ .Values.mongodb.database }}" }]})
@@ -46,7 +46,7 @@ spec:
               EOF
           env:
             - name: MONGO_HOST
-              value: todo-app-mongodb-0.todo-app-mongodb.todo-app.svc.cluster.local
+              value: {{ printf "%s-0.%s.%s.svc.cluster.local" (include "todo-app.componentName" (list . "mongodb")) (include "todo-app.componentName" (list . "mongodb")) (include "todo-app.namespace" .) }}
             - name: MONGO_PORT
               value: "{{ .Values.mongodb.service.port }}"
             - name: MONGO_ROOT_USERNAME
