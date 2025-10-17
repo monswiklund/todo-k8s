@@ -3,7 +3,7 @@ global:
 
 image:
   repository: ghcr.io/monswiklund/todo-app
-  tag: 9ddd6eb4bb965flatest
+  tag: d878f079ddd6eb4bb965flatest
 
 webapp:
   service:
