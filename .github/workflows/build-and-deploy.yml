@@ -48,7 +48,7 @@ jobs:
           context: .
           file: Dockerfile
           push: true
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/monswiklund/todo-app:${{ github.sha }} 
             ghcr.io/monswiklund/todo-app:latest
@@ -60,8 +60,8 @@ jobs:
 
       - name: Update image tags in Helm values
         run: |
-          sed -i "0,/tag: /s//tag: ${IMAGE_TAG}/" charts/todo/values.yaml
-          sed -i "0,/tag: /s//tag: ${IMAGE_TAG}/" charts/todo/values-eks-ghcr.yaml
+          sed -i 's|tag: .*|tag: '"${IMAGE_TAG}"'|' charts/todo/values.yaml
+          sed -i 's|tag: .*|tag: '"${IMAGE_TAG}"'|' charts/todo/values-eks-ghcr.yaml
 
       - name: Commit updated values
         run: |

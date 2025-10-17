@@ -32,7 +32,7 @@ webapp:
 mongodb:
   image:
     repository: mongo
-    tag: latest
+    tag: "6.0"
     pullPolicy: IfNotPresent
   replicaCount: 1
   database: ToDoAppDb
@@ -53,7 +53,7 @@ mongoExpress:
   enabled: true
   image:
     repository: mongo-express
-    tag: latest
+    tag: "1.0.2"
     pullPolicy: IfNotPresent
   env:
     basicAuth:
@@ -66,7 +66,7 @@ mongoExpress:
 storageClass:
   enabled: true
   name: ebs-sc
-  provisioner: ebs.csi.aws.com
+  provisioner: ebs.csi.eks.amazonaws.com
   parameters:
     type: gp3
     encrypted: "true"
