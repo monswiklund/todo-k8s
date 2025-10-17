@@ -9,7 +9,7 @@ spec:
   source:
     repoURL: https://github.com/monswiklund/todo-k8s.git
     targetRevision: main
-    path: kub8/charts/todo
+    path: charts/todo 
   destination:
     server: https://kubernetes.default.svc
     namespace: todo-app
