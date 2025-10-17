@@ -11,19 +11,22 @@ variable "vpc_cidr" {
   type = string  
   default = "10.0.0.0/16" 
 }
-variable "instance_type" { 
-  type = string  
-  default = "t3.small" 
+variable "instance_type" {
+  type    = string
+  default = "t3.small"
 }
-variable "desired_size" { 
-  type = number  
-  default = 2 
-}
-variable "min_size" { 
-  type = number  
-  default = 2
-}
-variable "max_size" {
-  type = number
+
+variable "desired_size" {
+  type    = number
   default = 4
+}
+
+variable "min_size" {
+  type    = number
+  default = 3
+}
+
+variable "max_size" {
+  type    = number
+  default = 6
 }
