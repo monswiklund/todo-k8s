@@ -52,6 +52,7 @@ jobs:
           tags: |
             ghcr.io/monswiklund/todo-app:${{ env.IMAGE_TAG }}
             ghcr.io/monswiklund/todo-app:latest
+
       - name: Helm lint
         run: helm lint charts/todo
 
@@ -60,8 +61,8 @@ jobs:
 
       - name: Update image tags in Helm values
         run: |
-          sed -i 's|tag: .*|tag: '"${IMAGE_TAG}"'|' charts/todo/values.yaml
-          sed -i 's|tag: .*|tag: '"${IMAGE_TAG}"'|' charts/todo/values-eks-ghcr.yaml
+          sed -i 's|^\(\s*tag:\s*\).*|\1'"${IMAGE_TAG}"'|' charts/todo/values.yaml
+          sed -i 's|^\(\s*tag:\s*\).*|\1'"${IMAGE_TAG}"'|' charts/todo/values-eks-ghcr.yaml
 
       - name: Commit updated values
         run: |
