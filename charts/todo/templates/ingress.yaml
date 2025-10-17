@@ -1,14 +1,14 @@
-# Ingress routing external traffic to the Todo API
 {{- if .Values.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "todo.fullname" . }}
-  namespace: {{ .Release.Namespace }}
+  name: {{ include "todo.componentName" (list . "ingress") }}
+  namespace: {{ include "todo.namespace" . }}
   labels:
     app.kubernetes.io/name: {{ include "todo.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/component: ingress
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -18,16 +18,18 @@ spec:
   ingressClassName: {{ .Values.ingress.className }}
   {{- end }}
   rules:
-    - host: {{ .Values.ingress.host }}
+    - {{- if .Values.ingress.host }}
+      host: {{ .Values.ingress.host | quote }}
+      {{- end }}
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: {{ include "todo.fullname" . }}
+                name: {{ include "todo.componentName" (list . "app") }}
                 port:
-                  number: {{ .Values.service.port }}
+                  number: {{ .Values.todoApp.service.port }}
   {{- if .Values.ingress.tls }}
   tls:
     {{- toYaml .Values.ingress.tls | nindent 4 }}

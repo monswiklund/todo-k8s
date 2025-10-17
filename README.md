@@ -5,13 +5,12 @@ Det här projektet har moderniserats från DynamoDB till MongoDB och försetts m
 ## Vad som är gjort
 - **Databasbyte:** All DynamoDB-användning har ersatts med MongoDB (`MongoDB.Driver`). `TaskService` använder `IMongoCollection<TodoTask>` och `Program.cs` injicerar klient, databas och hälsokontroll mot Mongo.
 - **Konfiguration:** Applikationen läser anslutningssträngen från miljövariabeln `MONGO_CONNECTION_STRING` eller `Mongo:ConnectionString` i `appsettings.json`. En lokal mall finns i `appsettings.json` (git-ignoread).
-- **Docker Compose:** Uppdaterad så Todo-appen får `MONGO_CONNECTION_STRING`. Lägg till egen MongoDB-tjänst eller peka mot Atlas.
 - **Kubernetes-manifests (`k8s/`):** Namespace `todo-app`, Deployment (3 repliker), Service, Ingress, StatefulSet + PVC för Mongo samt Secret som bär anslutningsuppgifterna.
 - **Helm-chart (`charts/todo/`):** Speglar samma konfiguration och underlättar GitOps-baserad distribution.
 - **GitOps-exempel:** README innehåller en Argo CD Application-definition för både rena manifests och Helm.
 
 ## Kör lokalt
-1. Installera .NET 9 SDK och en MongoDB-instans (t.ex. Docker eller Atlas).  
+1. Installera .NET 9 SDK och en MongoDB-instans (t.ex. Atlas eller egen server).
 2. Sätt anslutningssträngen (exempel med platshållare för Atlas):
    ```bash
    export MONGO_CONNECTION_STRING="mongodb+srv://<mongo-user>:<mongo-password>@cluster0.example.mongodb.net/todo-app?retryWrites=true&w=majority"
@@ -33,12 +32,6 @@ Det här projektet har moderniserats från DynamoDB till MongoDB och försetts m
    curl http://localhost:5000/health
    curl http://localhost:5000/todos
    ```
-
-## Docker Compose
-`docker-compose.yml` injicerar rätt miljövariabler. Lägg till en MongoDB-tjänst eller peka mot extern instans, exempel:
-```bash
-MONGO_CONNECTION_STRING="mongodb://<mongo-user>:<mongo-password>@mongo:27017/todo-app?authSource=admin" docker compose up
-```
 
 ## Kubernetes-manifests
 ```bash

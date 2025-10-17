@@ -1,34 +1,62 @@
-# Default configuration values for the Todo Helm chart
-replicaCount: 3
+namespace: todo-app
 
-image:
-  repository: ghcr.io/monswiklund/todo-app
-  tag: latest
-  pullPolicy: IfNotPresent
+imagePullSecrets: []
 
-service:
-  type: ClusterIP
-  port: 80
-  targetPort: 8080
+todoApp:
+  replicaCount: 3
+  image:
+    repository: ghcr.io/monswiklund/todo-app
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  env:
+    aspnetCoreEnvironment: Production
+    aspnetCoreUrls: http://+:8080
+  readinessProbe:
+    path: /health
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  livenessProbe:
+    path: /health
+    initialDelaySeconds: 30
+    periodSeconds: 30
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+mongo:
+  replicaCount: 1
+  image:
+    repository: mongo
+    tag: "6.0"
+    pullPolicy: IfNotPresent
+  service:
+    port: 27017
+  persistence:
+    enabled: true
+    storageClass: gp3
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+  resources: {}
+  auth:
+    createSecret: true
+    secretName: mongo-credentials
+    username: ""
+    password: ""
+    uri: ""
 
 ingress:
   enabled: true
-  className: nginx
-  host: todo.localhar
-  annotations: {}
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+  host: ""
   tls: []
-
-env:
-  ASPNETCORE_ENVIRONMENT: Production
-  ASPNETCORE_URLS: http://+:8080
-  secret:
-    name: mongo-credentials
-    key: MONGO_URI
-
-resources: {}
-
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}

@@ -1,7 +1,6 @@
-# Chart definition for deploying the Todo API on Kubernetes
 apiVersion: v2
 name: todo
-description: Deploys the C# Todo API and exposes it via an Ingress.
+description: Deploys the Todo API with MongoDB backing store on EKS via ALB.
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "1.0.0"
