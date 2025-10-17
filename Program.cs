@@ -45,28 +45,21 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-// MongoDB setup
-var mongoConnectionString =
-    builder.Configuration["MONGO_CONNECTION_STRING"] ??
-    builder.Configuration["Mongo:ConnectionString"];
 
-if (string.IsNullOrWhiteSpace(mongoConnectionString))
-    throw new InvalidOperationException("MongoDB connection string is not configured. Set env var MONGO_CONNECTION_STRING or Mongo:ConnectionString in appsettings.");
+// Läs in MongoDB-connectionstring från miljövariabel (fallback tas bort helt)
+var mongoConn = Environment.GetEnvironmentVariable("MONGO_URI");
 
-var mongoUrl = MongoUrl.Create(mongoConnectionString);
-var databaseName = string.IsNullOrWhiteSpace(mongoUrl.DatabaseName) ? "todo" : mongoUrl.DatabaseName;
-
-builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoUrl));
-builder.Services.AddSingleton<IMongoDatabase>(sp =>
+if (string.IsNullOrEmpty(mongoConn))
 {
-    var client = sp.GetRequiredService<IMongoClient>();
-    return client.GetDatabase(databaseName);
-});
-builder.Services.AddSingleton<IMongoCollection<TodoTask>>(sp =>
-{
-    var database = sp.GetRequiredService<IMongoDatabase>();
-    return database.GetCollection<TodoTask>("Tasks");
-});
+    Console.WriteLine("MONGO_URI saknas i miljövariablerna.");
+    throw new InvalidOperationException("MONGO_URI environment variable is required.");
+}
+
+Console.WriteLine($"Using MongoDB connection: {mongoConn}");
+
+builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoConn));
+builder.Services.AddControllers();
+
 
 builder.Services.AddScoped<TaskService>();
 
