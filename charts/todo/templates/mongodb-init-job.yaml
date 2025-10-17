@@ -13,11 +13,13 @@ metadata:
         hs.status = "Progressing"
       end
       return hs
+    argocd.argoproj.io/sync-options: Replace=true
   labels:
     {{- include "todo-app.labels" . | nindent 4 }}
     app.kubernetes.io/component: mongodb-init
 spec:
   backoffLimit: 3
+  ttlSecondsAfterFinished: 300
   template:
     metadata:
       labels:
