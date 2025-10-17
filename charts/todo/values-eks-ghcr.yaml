@@ -1,28 +1,22 @@
-global:
-  namespace: todo-app
-
 image:
   repository: ghcr.io/monswiklund/todo-app
   tag: latest
 
-webapp:
-  service:
-    type: ClusterIP
-    annotations: {}
-  env:
-    mongoUri: ""
-
 mongodb:
   storage:
     storageClass: ebs-sc
-  auth:
-    rootPassword: changeme
-    appPassword: changeme
+
+webapp:
+  service:
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+
+mongoExpress:
+  service:
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
 
 storageClass:
   enabled: true
-  name: ebs-sc
-  provisioner: ebs.csi.eks.amazonaws.com
-  parameters:
-    type: gp3
-    encrypted: "true"

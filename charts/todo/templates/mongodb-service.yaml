@@ -1,17 +1,17 @@
+{{- if .Values.mongodb.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "todo-app.componentName" (list . "mongodb") }}
-  namespace: {{ include "todo-app.namespace" . }}
+  name: mongodb-service
+  namespace: {{ .Values.namespace }}
   labels:
     {{- include "todo-app.labels" . | nindent 4 }}
-    app.kubernetes.io/component: mongodb
+    app: mongodb
 spec:
   clusterIP: None
-  ports:
-    - name: mongodb
-      port: {{ .Values.mongodb.service.port }}
-      targetPort: mongodb
   selector:
-    {{- include "todo-app.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: mongodb
+    app: mongodb
+  ports:
+    - port: 27017
+      targetPort: 27017
+{{- end }}

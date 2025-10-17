@@ -1,58 +1,45 @@
+{{- if .Values.mongodb.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "todo-app.componentName" (list . "mongodb") }}
-  namespace: {{ include "todo-app.namespace" . }}
-  annotations:
-    argocd.argoproj.io/sync-wave: "1"
-    argocd.argoproj.io/health-check: |
-      hs = {}
-      if obj.status ~= nil and obj.status.readyReplicas == obj.spec.replicas then
-        hs.status = "Healthy"
-      else
-        hs.status = "Progressing"
-      end
-      return hs
+  name: mongodb
+  namespace: {{ .Values.namespace }}
   labels:
     {{- include "todo-app.labels" . | nindent 4 }}
-    app.kubernetes.io/component: mongodb
+    app: mongodb
 spec:
-  serviceName: {{ include "todo-app.componentName" (list . "mongodb") }}
-  replicas: {{ .Values.mongodb.replicaCount }}
+  serviceName: mongodb-service
+  replicas: {{ .Values.mongodb.replicas }}
   selector:
     matchLabels:
-      {{- include "todo-app.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: mongodb
+      app: mongodb
   template:
     metadata:
       labels:
-        {{- include "todo-app.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: mongodb
+        app: mongodb
     spec:
       containers:
         - name: mongodb
-          image: "{{ .Values.mongodb.image.repository }}:{{ .Values.mongodb.image.tag }}"
-          imagePullPolicy: {{ .Values.mongodb.image.pullPolicy }}
+          image: {{ .Values.mongodb.image }}
           ports:
-            - containerPort: {{ .Values.mongodb.service.port }}
-              name: mongodb
-          env:
-            - name: MONGO_INITDB_ROOT_USERNAME
-              value: "{{ .Values.mongodb.auth.rootUsername }}"
-            - name: MONGO_INITDB_ROOT_PASSWORD
-              value: "{{ .Values.mongodb.auth.rootPassword }}"
-            - name: MONGO_INITDB_DATABASE
-              value: "{{ .Values.mongodb.database }}"
+            - containerPort: 27017
           volumeMounts:
-            - name: mongo-data
+            - name: mongodb-data
               mountPath: /data/db
+          resources:
+            {{- toYaml .Values.mongodb.resources | nindent 12 }}
+  {{- if .Values.mongodb.storage.enabled }}
   volumeClaimTemplates:
     - metadata:
-        name: mongo-data
+        name: mongodb-data
       spec:
         accessModes:
-          {{- toYaml .Values.mongodb.storage.accessModes | nindent 8 }}
-        storageClassName: {{ .Values.mongodb.storage.storageClass | quote }}
+          - ReadWriteOnce
+        {{- if .Values.mongodb.storage.storageClass }}
+        storageClassName: {{ .Values.mongodb.storage.storageClass }}
+        {{- end }}
         resources:
           requests:
             storage: {{ .Values.mongodb.storage.size }}
+  {{- end }}
+{{- end }}

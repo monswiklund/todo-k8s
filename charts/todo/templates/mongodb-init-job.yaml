@@ -1,57 +1,33 @@
+{{- if and .Values.mongodb.enabled .Values.initJob.enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "todo-app.componentName" (list . "mongodb-init") }}
-  namespace: {{ include "todo-app.namespace" . }}
-  annotations:
-    argocd.argoproj.io/sync-wave: "2"
-    argocd.argoproj.io/health-check: |
-      hs = {}
-      if obj.status ~= nil and obj.status.succeeded ~= nil and obj.status.succeeded > 0 then
-        hs.status = "Healthy"
-      else
-        hs.status = "Progressing"
-      end
-      return hs
-    argocd.argoproj.io/sync-options: Replace=true
+  name: {{ include "todo-app.fullname" . }}-mongodb-init
+  namespace: {{ .Values.namespace }}
   labels:
     {{- include "todo-app.labels" . | nindent 4 }}
-    app.kubernetes.io/component: mongodb-init
+    app: mongodb-init
 spec:
-  backoffLimit: 3
-  ttlSecondsAfterFinished: 300
+  backoffLimit: {{ .Values.initJob.backoffLimit }}
   template:
     metadata:
       labels:
-        {{- include "todo-app.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: mongodb-init
+        app: mongodb-init
     spec:
       restartPolicy: OnFailure
       containers:
-        - name: mongodb-init
-          image: "{{ .Values.mongodb.image.repository }}:{{ .Values.mongodb.image.tag }}"
-          imagePullPolicy: {{ .Values.mongodb.image.pullPolicy }}
+        - name: mongo-init
+          image: {{ .Values.mongodb.image }}
           command:
-            - /bin/sh
+            - /bin/bash
             - -c
             - |
-              set -e
-              until mongosh --host "${MONGO_HOST}" --port "${MONGO_PORT}" -u "${MONGO_ROOT_USERNAME}" -p "${MONGO_ROOT_PASSWORD}" --authenticationDatabase admin --eval "db.adminCommand('ping')" >/dev/null 2>&1; do
-                echo "Waiting for MongoDB..."
-                sleep 5
-              done
-              mongosh "mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@${MONGO_HOST}:${MONGO_PORT}/admin" --quiet <<'EOF'
-              db = db.getSiblingDB("{{ .Values.mongodb.database }}")
-              if (db.getUser("{{ .Values.mongodb.auth.appUsername }}") == null) {
-                db.createUser({user: "{{ .Values.mongodb.auth.appUsername }}", pwd: "{{ .Values.mongodb.auth.appPassword }}", roles: [{role: "readWrite", db: "{{ .Values.mongodb.database }}" }]})
+              sleep {{ .Values.initJob.delaySeconds }}
+              mongosh mongodb-service:27017/{{ .Values.mongodb.database }} --quiet <<'EOF'
+              const todos = {{ toJson .Values.initJob.todos }};
+              const existing = db.TodoItems.find().count();
+              if (existing === 0) {
+                db.TodoItems.insertMany(todos);
               }
               EOF
-          env:
-            - name: MONGO_HOST
-              value: {{ printf "%s-0.%s.%s.svc.cluster.local" (include "todo-app.componentName" (list . "mongodb")) (include "todo-app.componentName" (list . "mongodb")) (include "todo-app.namespace" .) }}
-            - name: MONGO_PORT
-              value: "{{ .Values.mongodb.service.port }}"
-            - name: MONGO_ROOT_USERNAME
-              value: "{{ .Values.mongodb.auth.rootUsername }}"
-            - name: MONGO_ROOT_PASSWORD
-              value: "{{ .Values.mongodb.auth.rootPassword }}"
+{{- end }}

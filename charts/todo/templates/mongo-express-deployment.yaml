@@ -2,59 +2,34 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "todo-app.componentName" (list . "mongo-express") }}
-  namespace: {{ include "todo-app.namespace" . }}
-  annotations:
-    argocd.argoproj.io/sync-wave: "3"
-    argocd.argoproj.io/health-check: |
-      hs = {}
-      if obj.status ~= nil and obj.status.readyReplicas ~= nil and obj.status.readyReplicas == obj.spec.replicas then
-        hs.status = "Healthy"
-      else
-        hs.status = "Progressing"
-      end
-      return hs
+  name: mongo-express
+  namespace: {{ .Values.namespace }}
   labels:
     {{- include "todo-app.labels" . | nindent 4 }}
-    app.kubernetes.io/component: mongo-express
+    app: mongo-express
 spec:
-  replicas: 1
+  replicas: {{ .Values.mongoExpress.replicas }}
   selector:
     matchLabels:
-      {{- include "todo-app.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: mongo-express
+      app: mongo-express
   template:
     metadata:
       labels:
-        {{- include "todo-app.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: mongo-express
+        app: mongo-express
     spec:
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       containers:
         - name: mongo-express
-          image: "{{ .Values.mongoExpress.image.repository }}:{{ .Values.mongoExpress.image.tag }}"
-          imagePullPolicy: {{ .Values.mongoExpress.image.pullPolicy }}
+          image: {{ .Values.mongoExpress.image }}
           ports:
-            - containerPort: {{ .Values.mongoExpress.service.port }}
+            - containerPort: {{ .Values.mongoExpress.port }}
               name: http
           env:
-            - name: ME_CONFIG_SITE_BASEURL
-              value: "/"
-            - name: ME_CONFIG_MONGODB_SERVER
-              value: {{ include "todo-app.componentName" (list . "mongodb") }}
-            - name: ME_CONFIG_MONGODB_PORT
-              value: "{{ .Values.mongodb.service.port }}"
-            - name: ME_CONFIG_MONGODB_ADMINUSERNAME
-              value: "{{ .Values.mongodb.auth.rootUsername }}"
-            - name: ME_CONFIG_MONGODB_ADMINPASSWORD
-              value: "{{ .Values.mongodb.auth.rootPassword }}"
             - name: ME_CONFIG_MONGODB_URL
-              value: 'mongodb://{{ .Values.mongodb.auth.appUsername }}:{{ .Values.mongodb.auth.appPassword }}@{{ include "todo-app.componentName" (list . "mongodb") }}:{{ .Values.mongodb.service.port }}/{{ .Values.mongodb.database }}?authSource=admin'
+              value: "mongodb://mongodb-service:27017"
             - name: ME_CONFIG_BASICAUTH_USERNAME
-              value: "{{ .Values.mongoExpress.env.basicAuth.username }}"
+              value: {{ .Values.mongoExpress.auth.username | quote }}
             - name: ME_CONFIG_BASICAUTH_PASSWORD
-              value: "{{ .Values.mongoExpress.env.basicAuth.password }}"
+              value: {{ .Values.mongoExpress.auth.password | quote }}
+          resources:
+            {{- toYaml .Values.mongoExpress.resources | nindent 12 }}
 {{- end }}

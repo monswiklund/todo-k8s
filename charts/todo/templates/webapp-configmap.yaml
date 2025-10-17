@@ -1,14 +1,13 @@
+{{- if .Values.webapp.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "todo-app.componentName" (list . "webapp-config") }}
-  namespace: {{ include "todo-app.namespace" . }}
+  name: webapp-config
+  namespace: {{ .Values.namespace }}
   labels:
     {{- include "todo-app.labels" . | nindent 4 }}
-    app.kubernetes.io/component: webapp
 data:
-  {{- $defaultMongoUri := printf "mongodb://%s:%s@%s:%d/%s?authSource=admin" .Values.mongodb.auth.appUsername .Values.mongodb.auth.appPassword (include "todo-app.componentName" (list . "mongodb")) (int .Values.mongodb.service.port) .Values.mongodb.database }}
-  MONGO_CONNECTION_STRING: "{{ default $defaultMongoUri .Values.webapp.env.mongoUri }}"
-  ASPNETCORE_ENVIRONMENT: "{{ .Values.webapp.env.aspnetCoreEnvironment }}"
-  ASPNETCORE_URLS: "{{ .Values.webapp.env.aspnetCoreUrls }}"
-  TODO_DATABASE_NAME: "{{ .Values.mongodb.database }}"
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_URLS: "http://+:{{ .Values.webapp.port }}"
+  MONGO_CONNECTION_STRING: "mongodb://mongodb-service:27017/{{ .Values.mongodb.database }}"
+{{- end }}

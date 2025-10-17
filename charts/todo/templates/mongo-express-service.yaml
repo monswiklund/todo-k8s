@@ -2,18 +2,21 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "todo-app.componentName" (list . "mongo-express") }}
-  namespace: {{ include "todo-app.namespace" . }}
+  name: mongo-express-service
+  namespace: {{ .Values.namespace }}
   labels:
     {{- include "todo-app.labels" . | nindent 4 }}
-    app.kubernetes.io/component: mongo-express
+    app: mongo-express
+  {{- with .Values.mongoExpress.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
-  type: {{ .Values.mongoExpress.service.type | default "ClusterIP" }}
+  type: {{ .Values.mongoExpress.service.type }}
   selector:
-    {{- include "todo-app.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: mongo-express
+    app: mongo-express
   ports:
-    - name: http
-      port: {{ .Values.mongoExpress.service.port }}
-      targetPort: http
+    - port: {{ .Values.mongoExpress.service.port }}
+      targetPort: {{ .Values.mongoExpress.port }}
+      protocol: TCP
 {{- end }}

@@ -1,16 +1,16 @@
-global:
-  namespace: todo-app
-
-webapp:
-  service:
-    type: ClusterIP
-    annotations: {}
-  env:
-    mongoUri: mongodb://todoapp:changeme@todo-app-mongodb:27017/ToDoAppDb?authSource=admin
-
-storageClass:
-  enabled: false
+image:
+  repository: ghcr.io/monswiklund/todo-app
+  tag: latest
 
 mongodb:
   storage:
     storageClass: ""
+
+webapp:
+  service:
+    type: NodePort
+    port: 80
+    nodePort: 30080
+
+mongoExpress:
+  enabled: false

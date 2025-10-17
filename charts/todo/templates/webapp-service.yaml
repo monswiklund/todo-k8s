@@ -1,11 +1,12 @@
+{{- if .Values.webapp.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "todo-app.componentName" (list . "webapp") }}
-  namespace: {{ include "todo-app.namespace" . }}
+  name: todo-webapp-service
+  namespace: {{ .Values.namespace }}
   labels:
     {{- include "todo-app.labels" . | nindent 4 }}
-    app.kubernetes.io/component: webapp
+    app: todo-webapp
   {{- with .Values.webapp.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -13,9 +14,12 @@ metadata:
 spec:
   type: {{ .Values.webapp.service.type }}
   selector:
-    {{- include "todo-app.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: webapp
+    app: todo-webapp
   ports:
-    - name: http
-      port: {{ .Values.webapp.service.port }}
-      targetPort: {{ .Values.webapp.service.targetPort }}
+    - port: {{ .Values.webapp.service.port }}
+      targetPort: {{ .Values.webapp.port }}
+      protocol: TCP
+      {{- if and (eq .Values.webapp.service.type "NodePort") .Values.webapp.service.nodePort }}
+      nodePort: {{ .Values.webapp.service.nodePort }}
+      {{- end }}
+{{- end }}
