@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "todo-app.componentName" (list . "webapp") }}
+  namespace: {{ include "todo-app.namespace" . }}
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/health-check: |
+      hs = {}
+      hs.status = "Progressing"
+      if obj.status ~= nil and obj.status.loadBalancer ~= nil and obj.status.loadBalancer.ingress ~= nil and #obj.status.loadBalancer.ingress > 0 then
+        hs.status = "Healthy"
+      end
+      return hs
+  labels:
+    {{- include "todo-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webapp
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "todo-app.componentName" (list . "webapp") }}
+                port:
+                  number: {{ .Values.webapp.service.port }}

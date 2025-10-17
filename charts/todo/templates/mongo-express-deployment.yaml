@@ -5,7 +5,7 @@ metadata:
   name: {{ include "todo-app.componentName" (list . "mongo-express") }}
   namespace: {{ include "todo-app.namespace" . }}
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "3"
     argocd.argoproj.io/health-check: |
       hs = {}
       if obj.status ~= nil and obj.status.readyReplicas ~= nil and obj.status.readyReplicas == obj.spec.replicas then

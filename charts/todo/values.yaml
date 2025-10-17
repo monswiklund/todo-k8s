@@ -24,11 +24,10 @@ webapp:
   tolerations: []
   affinity: {}
   service:
-    type: LoadBalancer
+    type: ClusterIP
     port: 80
     targetPort: 8080
-    annotations:
-      service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    annotations: {}
 
 mongodb:
   image:
