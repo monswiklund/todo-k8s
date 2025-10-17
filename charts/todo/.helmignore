@@ -1,0 +1,6 @@
+# Ignore packaged charts and local secret overrides
+*.tgz
+charts
+tmp
+values-secret.yaml
+secrets/
