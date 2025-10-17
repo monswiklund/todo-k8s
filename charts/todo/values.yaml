@@ -6,7 +6,7 @@ fullnameOverride: ""
 
 image:
   repository: ghcr.io/monswiklund/todo-app
-  tag: cdecbaf
+  tag: 8cfe609 cdecbaf
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
