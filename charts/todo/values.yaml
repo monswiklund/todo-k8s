@@ -6,7 +6,7 @@ fullnameOverride: ""
 
 image:
   repository: ghcr.io/monswiklund/todo-app
-  tag: cdecbaf
+  tag: 4573a9b
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -32,7 +32,7 @@ webapp:
 mongodb:
   image:
     repository: mongo
-    tag: cdecbaf
+    tag: 4573a9b
     pullPolicy: IfNotPresent
   replicaCount: 1
   database: ToDoAppDb
@@ -53,7 +53,7 @@ mongoExpress:
   enabled: true
   image:
     repository: mongo-express
-    tag: cdecbaf
+    tag: 4573a9b
     pullPolicy: IfNotPresent
   env:
     basicAuth:
