@@ -50,9 +50,8 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: |
-            ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-            ${{ env.IMAGE_NAME }}:latest
-
+            ghcr.io/monswiklund/todo-app:${{ github.sha }} 
+            ghcr.io/monswiklund/todo-app:latest
       - name: Helm lint
         run: helm lint charts/todo
 
