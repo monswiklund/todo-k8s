@@ -62,20 +62,24 @@ jobs:
       - name: Update image tags in Helm values
         run: |
           python3 - <<'PY'
-import os
-tag = os.environ["IMAGE_TAG"]
-paths = ["charts/todo/values.yaml", "charts/todo/values-eks-ghcr.yaml"]
-for path in paths:
-    with open(path, "r", encoding="utf-8") as handle:
-        lines = handle.readlines()
-    for idx, line in enumerate(lines):
-        stripped = line.lstrip()
-        if stripped.startswith("tag:"):
-            indent = line[: len(line) - len(stripped)]
-            lines[idx] = f"{indent}tag: {tag}\n"
-            break
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.writelines(lines)
+          import os
+
+          tag = os.environ["IMAGE_TAG"]
+          paths = ["charts/todo/values.yaml", "charts/todo/values-eks-ghcr.yaml"]
+
+          for path in paths:
+              with open(path, "r", encoding="utf-8") as handle:
+                  lines = handle.readlines()
+
+              for idx, line in enumerate(lines):
+                  stripped = line.lstrip()
+                  if stripped.startswith("tag:"):
+                      indent = line[: len(line) - len(stripped)]
+                      lines[idx] = f"{indent}tag: {tag}\n"
+                      break
+
+              with open(path, "w", encoding="utf-8") as handle:
+                  handle.writelines(lines)
 PY
 
       - name: Commit updated values
