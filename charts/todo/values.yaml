@@ -6,7 +6,7 @@ fullnameOverride: ""
 
 image:
   repository: ghcr.io/monswiklund/todo-app
-  tag: dev
+  tag: latest
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
