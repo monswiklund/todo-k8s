@@ -12,9 +12,15 @@ spec:
     helm:
       valueFiles:
         - values-eks-ghcr.yaml
+      parameters:
+        - name: image.tag
+          value: eks-20251018v3
   destination:
     server: https://kubernetes.default.svc
     namespace: todo-app
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
