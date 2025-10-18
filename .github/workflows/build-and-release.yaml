@@ -1,0 +1,107 @@
+name: Build and Release Todo App
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore
+
+      - name: Test
+        run: dotnet test --no-build
+
+  release:
+    needs: build-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: monswiklund/todo-app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+
+      - name: Set image tag
+        id: vars
+        run: echo "tag=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Build and push multi-arch image
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.tag }} \
+            --push \
+            .
+
+      - name: Update Helm values and ArgoCD manifest
+        env:
+          IMAGE_TAG: ${{ steps.vars.outputs.tag }}
+        run: |
+          python <<'PY'
+          import os, pathlib, re
+
+          tag = os.environ["IMAGE_TAG"]
+
+          values_path = pathlib.Path("charts/todo/values-eks-ghcr.yaml")
+          lines = values_path.read_text().splitlines()
+          for idx, line in enumerate(lines):
+              if line.strip().startswith("tag:"):
+                  indent = line[:line.index("tag:")]
+                  lines[idx] = f"{indent}tag: {tag}"
+                  break
+          values_path.write_text("\n".join(lines) + "\n")
+
+          app_path = pathlib.Path("argocd-app.yaml")
+          lines = app_path.read_text().splitlines()
+          for idx, line in enumerate(lines):
+              if "name: image.tag" in line and idx + 1 < len(lines):
+                  lines[idx + 1] = re.sub(r"value:.*", f"          value: {tag}", lines[idx + 1])
+                  break
+          app_path.write_text("\n".join(lines) + "\n")
+          PY
+
+      - name: Commit chart updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add charts/todo/values-eks-ghcr.yaml argocd-app.yaml
+          if git diff --cached --quiet; then
+            echo "No chart updates to commit."
+            exit 0
+          fi
+          git commit -m "chore: release image ${{ steps.vars.outputs.tag }} [skip ci]"
+          git push
