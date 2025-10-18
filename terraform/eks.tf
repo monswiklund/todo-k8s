@@ -1,3 +1,11 @@
+/*
+#######################################################################
+# NOTE
+# The Terraform-based EKS cluster and managed node group are commented
+# out because the course deployment uses EKS Auto Mode via the console.
+# Remove this block comment to re-enable the classic infrastructure.
+#######################################################################
+
 # IAM för EKS Cluster
 resource "aws_iam_role" "eks_cluster_role" {
   name = "${var.cluster_name}-cluster-role"
@@ -108,3 +116,4 @@ resource "aws_eks_node_group" "default" {
 
   tags = { Name = "${var.cluster_name}-ng" }
 }
+*/

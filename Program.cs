@@ -45,14 +45,23 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-
-// Läs in MongoDB-connectionstring från miljövariabel (fallback tas bort helt)
+// Läs in MongoDB-connectionstring från miljövariabler eller appsettings
 var mongoConn = Environment.GetEnvironmentVariable("MONGO_URI");
 
 if (string.IsNullOrEmpty(mongoConn))
 {
-    Console.WriteLine("MONGO_URI saknas i miljövariablerna.");
-    throw new InvalidOperationException("MONGO_URI environment variable is required.");
+    mongoConn = Environment.GetEnvironmentVariable("MONGO_CONNECTION_STRING");
+}
+
+if (string.IsNullOrEmpty(mongoConn))
+{
+    mongoConn = builder.Configuration["Mongo:ConnectionString"];
+}
+
+if (string.IsNullOrEmpty(mongoConn))
+{
+    Console.WriteLine("MongoDB-connection saknas i miljövariabler eller konfiguration.");
+    throw new InvalidOperationException("MONGO_URI or MONGO_CONNECTION_STRING environment variable is required.");
 }
 
 Console.WriteLine($"Using MongoDB connection: {mongoConn}");

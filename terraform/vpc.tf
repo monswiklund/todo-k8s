@@ -1,3 +1,11 @@
+/*
+#######################################################################
+# NOTE
+# The Terraform-based VPC has been commented out because the course
+# deployment uses EKS Auto Mode (created via AWS Console). If you want
+# to provision a classic EKS cluster with Terraform, remove this block
+# comment to reactivate the resources below.
+#######################################################################
 
 data "aws_availability_zones" "azs" {}
 
@@ -25,10 +33,10 @@ resource "aws_subnet" "public_subnet" {
 
 # Private subnets (2 AZ)
 resource "aws_subnet" "private_subnet" {
-  count             = 2
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index + 2)
-  availability_zone = element(data.aws_availability_zones.azs.names, count.index)
+  count                   = 2
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = cidrsubnet(var.vpc_cidr, 8, count.index + 2)
+  availability_zone       = element(data.aws_availability_zones.azs.names, count.index)
   map_public_ip_on_launch = false
 
   tags = {
@@ -93,3 +101,4 @@ resource "aws_vpc_endpoint" "s3" {
   route_table_ids = [aws_route_table.public.id, aws_route_table.private.id]
   tags = { Name = "${var.cluster_name}-vpce-s3" }
 }
+*/
