@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Mvc;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using ToDoApp.Models;
@@ -66,7 +67,21 @@ if (string.IsNullOrEmpty(mongoConn))
 
 Console.WriteLine($"Using MongoDB connection: {mongoConn}");
 
-builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoConn));
+var mongoUrl = MongoUrl.Create(mongoConn);
+var databaseName = mongoUrl.DatabaseName ?? builder.Configuration["Mongo:DatabaseName"] ?? "ToDoAppDb";
+
+builder.Services.AddSingleton(mongoUrl);
+builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoUrl));
+builder.Services.AddSingleton<IMongoDatabase>(sp =>
+{
+    var client = sp.GetRequiredService<IMongoClient>();
+    return client.GetDatabase(databaseName);
+});
+builder.Services.AddSingleton<IMongoCollection<TodoTask>>(sp =>
+{
+    var database = sp.GetRequiredService<IMongoDatabase>();
+    return database.GetCollection<TodoTask>("Todos");
+});
 builder.Services.AddControllers();
 
 
@@ -144,7 +159,7 @@ app.MapDelete("/todos/{id}", async (string id, TaskService service) =>
 });
 
 // Health check endpoint that verifies MongoDB connectivity
-app.MapGet("/health", async (IMongoDatabase database) =>
+app.MapGet("/health", async ([FromServices] IMongoDatabase database) =>
 {
     try
     {
