@@ -78,12 +78,12 @@ jobs:
             --push \
             .
 
-      - name: Update Helm values and ArgoCD manifest
+      - name: Update Helm values file
         env:
           IMAGE_TAG: ${{ steps.vars.outputs.tag }}
         run: |
           python <<'PY'
-          import os, pathlib, re
+          import os, pathlib
 
           tag = os.environ["IMAGE_TAG"]
 
@@ -95,21 +95,13 @@ jobs:
                   lines[idx] = f"{indent}tag: {tag}"
                   break
           values_path.write_text("\n".join(lines) + "\n")
-
-          app_path = pathlib.Path("argocd-app.yaml")
-          lines = app_path.read_text().splitlines()
-          for idx, line in enumerate(lines):
-              if "name: image.tag" in line and idx + 1 < len(lines):
-                  lines[idx + 1] = re.sub(r"value:.*", f"          value: {tag}", lines[idx + 1])
-                  break
-          app_path.write_text("\n".join(lines) + "\n")
           PY
 
       - name: Commit chart updates
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add charts/todo/values-eks-ghcr.yaml argocd-app.yaml
+          git add charts/todo/values-eks-ghcr.yaml
           if git diff --cached --quiet; then
             echo "No chart updates to commit."
             exit 0
