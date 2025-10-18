@@ -14,7 +14,7 @@ spec:
         - values-eks-ghcr.yaml
       parameters:
         - name: image.tag
-          value: eks-20251018v3
+                    value: 4bde4cd
   destination:
     server: https://kubernetes.default.svc
     namespace: todo-app
