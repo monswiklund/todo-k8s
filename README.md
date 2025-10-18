@@ -1,95 +1,44 @@
-# C# Todo App – MongoDB & Kubernetes
+# Todo App (ASP.NET Core + MongoDB + Kubernetes)
 
-Det här projektet har moderniserats från DynamoDB till MongoDB och försetts med en komplett Kubernetes-distribution (manifests + Helm-chart) som fungerar både lokalt och i EKS. Dokumentet sammanfattar vad som gjorts och hur du kör allt.
+Det här projektet innehåller en minimal ASP.NET Core API-applikation som pratar med MongoDB och är paketerad som ett Helm-diagram för Kubernetes. Miljön körs lokalt med Docker Desktop och i molnet på Amazon EKS Auto Mode med ArgoCD som GitOps-motor.
 
-## Vad som är gjort
-- **Databasbyte:** All DynamoDB-användning har ersatts med MongoDB (`MongoDB.Driver`). `TaskService` använder `IMongoCollection<TodoTask>` och `Program.cs` injicerar klient, databas och hälsokontroll mot Mongo.
-- **Konfiguration:** Applikationen läser anslutningssträngen från miljövariabeln `MONGO_CONNECTION_STRING` eller `Mongo:ConnectionString` i `appsettings.json`. En lokal mall finns i `appsettings.json` (git-ignoread).
-- **Kubernetes-manifests (`k8s/`):** Namespace `todo-app`, Deployment (3 repliker), Service, Ingress, StatefulSet + PVC för Mongo samt Secret som bär anslutningsuppgifterna.
-- **Helm-chart (`charts/todo/`):** Speglar samma konfiguration och underlättar GitOps-baserad distribution.
-- **GitOps-exempel:** README innehåller en Argo CD Application-definition för både rena manifests och Helm.
-
-## Kör lokalt
-1. Installera .NET 9 SDK och en MongoDB-instans (t.ex. Atlas eller egen server).
-2. Sätt anslutningssträngen (exempel med platshållare för Atlas):
-   ```bash
-   export MONGO_CONNECTION_STRING="mongodb+srv://<mongo-user>:<mongo-password>@cluster0.example.mongodb.net/todo-app?retryWrites=true&w=majority"
-   ```
-   eller ändra `appsettings.json`:
-   ```json
-   {
-     "Mongo": {
-       "ConnectionString": "mongodb+srv://<mongo-user>:<mongo-password>@cluster0.example.mongodb.net/todo-app"
-     }
-   }
-   ```
-3. Kör appen:
-   ```bash
-   dotnet run
-   ```
-4. Verifiera:
-   ```bash
-   curl http://localhost:5000/health
-   curl http://localhost:5000/todos
-   ```
-
-## Kubernetes-manifests
+## Snabbstart lokalt
 ```bash
-kubectl create namespace todo-app
-kubectl apply -f k8s/
+dotnet restore
+export MONGO_CONNECTION_STRING="mongodb://localhost:27017/todo-app"
+dotnet run
+curl http://localhost:5000/health
 ```
-Skapa hemligheten med dina riktiga uppgifter innan du deployar, exempel:
-```bash
-kubectl create secret generic mongo-credentials \
-  --from-literal=MONGO_USER=<mongo-user> \
-  --from-literal=MONGO_PASSWORD=<mongo-password> \
-  --from-literal=MONGO_URI="mongodb+srv://<mongo-user>:<mongo-password>@cluster0.example.mongodb.net/todo-app?retryWrites=true&w=majority" \
-  -n todo-app
-```
-Port-forward för test:
-```bash
-kubectl port-forward svc/todo-service 8080:80 -n todo-app
-curl http://localhost:8080/todos
-```
+Applikationen läser anslutningen från `MONGO_URI`, `MONGO_CONNECTION_STRING` eller `Mongo:ConnectionString` i `appsettings.json`. Alla Mongo-tjänster (`IMongoClient`, `IMongoDatabase`, `IMongoCollection<TodoTask>`) registreras i `Program.cs`, och API:et exponerar CRUD-endpoints under `/todos` samt statiska filer i `wwwroot/`.
 
-## Helm-installation
-```bash
-kubectl create namespace todo-app
-helm install todo ./charts/todo -n todo-app \
-  --set image.repository=ghcr.io/monswiklund/todo-app \
-  --set image.tag=latest \
-  --set ingress.host=todo.example.com \
-  --set env.secret.name=mongo-credentials
-```
-Override-filer och fler värden finns i `charts/todo/values.yaml`.
+## Deployment i Kubernetes (översikt)
+1. Bygg multi-arch-container och pusha till GHCR:  
+   `docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/monswiklund/todo-app:<tag> --push .`
+2. Uppdatera `charts/todo/values-eks-ghcr.yaml:image.tag` (workflowet gör detta automatiskt vid merge till `main`).
+3. Deploya med Helm:  
+   `helm upgrade --install todo-app charts/todo -f charts/todo/values-eks-ghcr.yaml`
+4. Validera: `kubectl get pods -n todo-app` och `curl "http://<load-balancer-dns>/todos"`.
+5. ArgoCD auto-syncar commits i `main` och håller klustret i synk. Manifestet finns i `argocd-app.yaml`.
 
-## GitOps med Argo CD
-Manifests:
-```yaml
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: todo-app
-  namespace: argocd
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/your-org/your-repo.git
-    targetRevision: main
-    path: kub8/k8s
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: todo-app
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-```
-För Helm ändra `spec.source.path` till `kub8/charts/todo` och lägg till `helm.values` efter behov.
+Detaljerade instruktioner och kursrapport finns i `docs/` (se nedan).
+
+## CI/CD
+GitHub Actions-workflowen `.github/workflows/build-and-release.yaml`:
+- Kör `dotnet build/test` på alla PRs.
+- Bygger och pushar multi-arch Docker-image vid push till `main`.
+- Uppdaterar `charts/todo/values-eks-ghcr.yaml` och `argocd-app.yaml` med samma bildtagg.
+- Commits signerade `[skip ci]` förhindrar loopar. ArgoCD plockar upp ändringen och rullar ut automatiskt.
+
+## Strukturell översikt
+- `Program.cs`, `Models/`, `Services/` – applikationskod.
+- `wwwroot/` – statiska resurser (bl.a. `index.html`).
+- `charts/todo/` – Helm-diagrammet för MongoDB + webbapp.
+- `docs/`  
+  - `DEPLOYMENT_GUIDE.md` – full körinstruktion för EKS Auto Mode, Helm och ArgoCD.  
+  - `REPORT.md` – sammanfattning som besvarar kursuppgiften.
+- `terraform/` – historisk referenskonfiguration (kommenterad) för ett manuellt EKS-kluster.
 
 ## Nästa steg
-- Sätt upp DNS för `todo.<domain>` och peka mot ingressens IP/ALB.
-- Bygg och pusha en produktionsimage (`docker build` + registry).
-- Städa bort den deployment-variant (rå manifests eller Helm) du inte tänker använda långsiktigt.
-# k8-test
-# todo-k8s
+- Följ `docs/DEPLOYMENT_GUIDE.md` för steg-för-steg-guidning i molnet.
+- Använd `docs/REPORT.md` som underlag till kursinlämningen.
+- Uppdatera applikationen (t.ex. `wwwroot/index.html`) och låt Actions + ArgoCD sköta releasen.
