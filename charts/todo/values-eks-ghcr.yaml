@@ -4,19 +4,10 @@ image:
 
 mongodb:
   storage:
-    storageClass: ebs-sc
+    storageClass: gp3
 
 webapp:
   service:
     type: LoadBalancer
     annotations:
       service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-
-mongoExpress:
-  service:
-    type: LoadBalancer
-    annotations:
-      service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-
-storageClass:
-  enabled: true

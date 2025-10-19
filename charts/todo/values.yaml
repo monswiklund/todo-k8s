@@ -41,43 +41,14 @@ webapp:
       cpu: 250m
       memory: 256Mi
 
-mongoExpress:
-  enabled: false
-  image: mongo-express:1.0.2
-  replicas: 1
-  port: 8081
-  service:
-    type: ClusterIP
-    port: 8081
-    annotations: {}
-  auth:
-    username: admin
-    password: pass
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 250m
-      memory: 256Mi
-
 initJob:
   enabled: true
   backoffLimit: 3
   delaySeconds: 10
   todos:
-    - id: 1
-      name: "Learn Kubernetes"
-      isComplete: false
-    - id: 2
-      name: "Deploy MongoDB"
-      isComplete: true
-
-storageClass:
-  enabled: false
-  name: ebs-sc
-  provisioner: ebs.csi.eks.amazonaws.com
-  volumeBindingMode: WaitForFirstConsumer
-  parameters:
-    type: gp3
-    encrypted: "true"
+    - Title: "Learn Kubernetes"
+      Description: "Gå igenom Helm-workshopen och dokumentera lärdomar"
+      IsCompleted: false
+    - Title: "Deploy MongoDB"
+      Description: "Provisionera lagring och verifiera anslutningar"
+      IsCompleted: true

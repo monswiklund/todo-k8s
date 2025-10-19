@@ -24,10 +24,21 @@ spec:
             - |
               sleep {{ .Values.initJob.delaySeconds }}
               mongosh mongodb-service:27017/{{ .Values.mongodb.database }} --quiet <<'EOF'
-              const todos = {{ toJson .Values.initJob.todos }};
-              const existing = db.TodoItems.find().count();
-              if (existing === 0) {
-                db.TodoItems.insertMany(todos);
+              const todosConfig = {{ toJson (default (list) .Values.initJob.todos) }};
+              const normalize = (todo) => ({
+                Id: todo.Id ?? todo.id ?? new ObjectId().toString(),
+                Title: todo.Title ?? todo.title ?? "Unnamed task",
+                Description: todo.Description ?? todo.description ?? null,
+                IsCompleted: todo.IsCompleted ?? todo.isCompleted ?? false
+              });
+
+              const todos = todosConfig.map(normalize);
+              const collection = db.Todos;
+              if (collection.estimatedDocumentCount() === 0 && todos.length > 0) {
+                collection.insertMany(todos);
+                print(`Inserted ${todos.length} todos into 'Todos'.`);
+              } else {
+                print("Skipping seed: collection already populated or no todos defined.");
               }
               EOF
 {{- end }}
