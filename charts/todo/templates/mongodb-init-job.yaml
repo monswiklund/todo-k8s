@@ -25,12 +25,15 @@ spec:
               sleep {{ .Values.initJob.delaySeconds }}
               mongosh mongodb-service:27017/{{ .Values.mongodb.database }} --quiet <<'EOF'
               const todosConfig = {{ toJson (default (list) .Values.initJob.todos) }};
-              const normalize = (todo) => ({
-                Id: todo.Id ?? todo.id ?? new ObjectId().toString(),
-                Title: todo.Title ?? todo.title ?? "Unnamed task",
-                Description: todo.Description ?? todo.description ?? null,
-                IsCompleted: todo.IsCompleted ?? todo.isCompleted ?? false
-              });
+              const normalize = (todo) => {
+                const id = todo.Id ?? todo.id ?? new ObjectId().toHexString();
+                return {
+                  _id: id,
+                  Title: todo.Title ?? todo.title ?? "Unnamed task",
+                  Description: todo.Description ?? todo.description ?? null,
+                  IsCompleted: todo.IsCompleted ?? todo.isCompleted ?? false
+                };
+              };
 
               const todos = todosConfig.map(normalize);
               const collection = db.Todos;
