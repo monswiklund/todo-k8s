@@ -84,7 +84,6 @@ builder.Services.AddSingleton<IMongoCollection<TodoTask>>(sp =>
 });
 builder.Services.AddControllers();
 
-
 builder.Services.AddScoped<TaskService>();
 
 var app = builder.Build();

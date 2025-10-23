@@ -1,9 +1,10 @@
 ﻿# ---- Build stage ----
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
+COPY ToDoApp.csproj ./
+RUN dotnet restore ToDoApp.csproj
 COPY . .
-RUN dotnet restore
-RUN dotnet publish -c Release -o /app
+RUN dotnet publish ToDoApp.csproj -c Release -o /app
 
 # ---- Runtime stage ----
 FROM mcr.microsoft.com/dotnet/aspnet:9.0

@@ -46,9 +46,9 @@ initJob:
   backoffLimit: 3
   delaySeconds: 10
   todos:
-    - Title: "Learn Kubernetes"
-      Description: "Gå igenom Helm-workshopen och dokumentera lärdomar"
+    - Title: "Test 1"
+      Description: "Test 1"
       IsCompleted: false
-    - Title: "Deploy MongoDB"
-      Description: "Provisionera lagring och verifiera anslutningar"
+    - Title: "Kubernetes Test 2"
+      Description: "test 2"
       IsCompleted: true

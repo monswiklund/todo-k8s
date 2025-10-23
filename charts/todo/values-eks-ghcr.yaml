@@ -1,6 +1,6 @@
 image:
   repository: ghcr.io/monswiklund/todo-app
-  tag: fdf1e51
+  tag: fdf1e51 # UPPDATERA TAG HÄR VID
 
 mongodb:
   storage:
